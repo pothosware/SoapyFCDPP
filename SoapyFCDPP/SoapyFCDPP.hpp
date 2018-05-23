@@ -35,7 +35,7 @@ private:
     // bool d_agc_mode;
 
     // Device properties
-    double d_sample_rate;
+    const double d_sample_rate;
     double d_frequency;
     double d_lna_gain;
     double d_mixer_gain;

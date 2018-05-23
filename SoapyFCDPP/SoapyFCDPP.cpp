@@ -368,10 +368,9 @@ std::vector<double> SoapyFCDPP::listSampleRates(const int direction, const size_
     SoapySDR_log(SOAPY_SDR_INFO, "listSampleRates");
     
     std::vector<double> rates;
-    rates.push_back(89286.);
+    rates.push_back(d_sample_rate);
     return rates;
 }
-
 
 void SoapyFCDPP::setBandwidth(const int direction, const size_t channel, const double bw)
 {
