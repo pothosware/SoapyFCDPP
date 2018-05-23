@@ -18,24 +18,36 @@
 #include <fstream>
 #include <hidapi.h>
 
+#include "fcd.h"
 #include "alsa.h"
- 
+
+// This is for the funcube dongle pro+
+#define FCDPP_VENDOR_ID     0x04d8
+#define FCDPP_PRODUCT_ID    0xfb31
+
 class SoapyFCDPP : public SoapySDR::Device
 {
     
 private:
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
-    //stream_format_t d_stream_format;
     std::vector<int32_t> d_buff;
-    bool d_agc_mode;
-    double d_frequency;
+    // bool d_agc_mode;
+
+    // Device properties
     double d_sample_rate;
+    double d_frequency;
+    double d_lna_gain;
+    double d_mixer_gain;
+    double d_if_gain;
     
     SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
 
+    // hid
+    hid_device *d_handle;
+    
 public:
-    SoapyFCDPP();
+    SoapyFCDPP(const std::string &path);
     ~SoapyFCDPP();
     
     //Implement all applicable virtual methods from SoapySDR::Device

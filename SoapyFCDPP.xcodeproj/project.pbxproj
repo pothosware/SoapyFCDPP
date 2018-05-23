@@ -10,6 +10,7 @@
 		B127923420B4A9D0000CA9FD /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B127923320B4A9D0000CA9FD /* main.cpp */; };
 		B127923E20B4AA4E000CA9FD /* SoapyFCDPP.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */; };
 		B127923F20B4AA4E000CA9FD /* alsa.c in Sources */ = {isa = PBXBuildFile; fileRef = B127923C20B4AA4E000CA9FD /* alsa.c */; };
+		B127924420B4B15F000CA9FD /* fcd.c in Sources */ = {isa = PBXBuildFile; fileRef = B127924320B4B15F000CA9FD /* fcd.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -31,6 +32,11 @@
 		B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SoapyFCDPP.cpp; sourceTree = "<group>"; };
 		B127923C20B4AA4E000CA9FD /* alsa.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = alsa.c; sourceTree = "<group>"; };
 		B127923D20B4AA4E000CA9FD /* alsa.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = alsa.h; sourceTree = "<group>"; };
+		B127924220B4B143000CA9FD /* fcdcmd.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fcdcmd.h; sourceTree = "<group>"; };
+		B127924320B4B15F000CA9FD /* fcd.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fcd.c; sourceTree = "<group>"; };
+		B127924520B4B1B1000CA9FD /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = SOURCE_ROOT; };
+		B127924620B4B1BA000CA9FD /* meson.build */ = {isa = PBXFileReference; lastKnownFileType = text; path = meson.build; sourceTree = "<group>"; };
+		B127924B20B4C0E5000CA9FD /* fcd.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fcd.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -63,6 +69,9 @@
 		B127923220B4A9D0000CA9FD /* SoapyFCDPP */ = {
 			isa = PBXGroup;
 			children = (
+				B127924520B4B1B1000CA9FD /* README.md */,
+				B127924620B4B1BA000CA9FD /* meson.build */,
+				B127924120B4B136000CA9FD /* fcdpp */,
 				B127924020B4AA99000CA9FD /* alsa */,
 				B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */,
 				B127923A20B4AA4E000CA9FD /* SoapyFCDPP.hpp */,
@@ -78,6 +87,16 @@
 				B127923D20B4AA4E000CA9FD /* alsa.h */,
 			);
 			name = alsa;
+			sourceTree = "<group>";
+		};
+		B127924120B4B136000CA9FD /* fcdpp */ = {
+			isa = PBXGroup;
+			children = (
+				B127924220B4B143000CA9FD /* fcdcmd.h */,
+				B127924320B4B15F000CA9FD /* fcd.c */,
+				B127924B20B4C0E5000CA9FD /* fcd.h */,
+			);
+			name = fcdpp;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,6 +159,7 @@
 				B127923E20B4AA4E000CA9FD /* SoapyFCDPP.cpp in Sources */,
 				B127923420B4A9D0000CA9FD /* main.cpp in Sources */,
 				B127923F20B4AA4E000CA9FD /* alsa.c in Sources */,
+				B127924420B4B15F000CA9FD /* fcd.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

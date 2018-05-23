@@ -2,61 +2,29 @@
 #include <SoapySDR/Logger.hpp>
 
 #include <algorithm>
-//#include <SoapySDR/ConverterPrimatives.hpp>
 
 
-// CS32 <> CF32
-/*static void genericCS32toCF32(const void *srcBuff, void *dstBuff, const size_t numElems, const double scaler)
-{
-    const size_t elemDepth = 2;
-    
-    if (scaler == 1.0)
-    {
-        auto *src = (int32_t*)srcBuff;
-        auto *dst = (float*)dstBuff;
-        for (size_t i = 0; i < numElems*elemDepth; i++)
-        {
-            dst[i] = SoapySDR::S32toF32(src[i]);
-        }
-    }
-    else
-    {
-        auto *src = (int32_t*)srcBuff;
-        auto *dst = (int32_t*)dstBuff;
-        for (size_t i = 0; i < numElems*elemDepth; i++)
-        {
-            dst[i] = SoapySDR::S32toF32(src[i]) * scaler;
-        }
-    }
-}
-
-// CS32 <> CS16 scaler ignored
-static void genericCS32toCS16(const void *srcBuff, void *dstBuff, const size_t numElems, const double scaler)
-{
-    const size_t elemDepth = 2;
-    
-    auto *src = (int32_t*)srcBuff;
-    auto *dst = (int16_t*)dstBuff;
-    for (size_t i = 0; i < numElems*elemDepth; i++)
-    {
-        dst[i] = SoapySDR::S32toS16(src[i]);
-    }
-}*/
-
-
-SoapyFCDPP::SoapyFCDPP() :
-d_agc_mode(false),
+SoapyFCDPP::SoapyFCDPP(const std::string &path) :
 d_period_size(4096),
 d_frequency(0),
-d_sample_rate(89286)
+d_sample_rate(192000.),
+d_lna_gain(0),
+d_mixer_gain(0),
+d_if_gain(0)
 {
+    d_handle = hid_open_path(path.c_str());
+    if (d_handle == nullptr) {
+        throw std::runtime_error("hid_open_path failed");
+    }
     // Sample buffer
     d_buff.resize(2 * d_period_size);
 }
 
 SoapyFCDPP::~SoapyFCDPP()
 {
-
+    if (d_handle != nullptr) {
+        hid_close(d_handle);
+    }
 }
 
 // Identification API
@@ -78,7 +46,7 @@ size_t SoapyFCDPP::getNumChannels(const int dir) const
 
 bool SoapyFCDPP::getFullDuplex(const int direction, const size_t channel) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "getFullDuplex");
+    SoapySDR_log(SOAPY_SDR_DEBUG, "getFullDuplex");
     return false;
 }
 
@@ -101,35 +69,11 @@ std::string SoapyFCDPP::getNativeStreamFormat(const int direction, const size_t 
 SoapySDR::ArgInfoList SoapyFCDPP::getStreamArgsInfo(const int direction, const size_t channel) const
 {
     SoapySDR::ArgInfoList streamArgs;
-    
-    SoapySDR::ArgInfo chanArg;
-    chanArg.key = "chan";
-    chanArg.value = "stereo_iq";
-    chanArg.name = "Channel Setup";
-    chanArg.description = "Input channel configuration.";
-    chanArg.type = SoapySDR::ArgInfo::STRING;
-    
-    std::vector<std::string> chanOpts;
-    std::vector<std::string> chanOptNames;
-    
-    chanOpts.push_back("stereo_iq");
-    chanOptNames.push_back("Complex L/R = I/Q");
-
-    chanArg.options = chanOpts;
-    chanArg.optionNames = chanOptNames;
-    
-    streamArgs.push_back(chanArg);
-    
     return streamArgs;
 }
 
 SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
-    // Register format converters once
-    /*static SoapySDR::ConverterRegistry registerGenericCS32toCF32(SOAPY_SDR_CS32, SOAPY_SDR_CF32, SoapySDR::ConverterRegistry::GENERIC, &genericCS32toCF32);
-    static SoapySDR::ConverterRegistry registerGenericCS32toCS16(SOAPY_SDR_CS32, SOAPY_SDR_CS16, SoapySDR::ConverterRegistry::GENERIC, &genericCS32toCS16);
-    */
-    
     if (direction != SOAPY_SDR_RX) {
         throw std::runtime_error("setupStream only RX supported");
     }
@@ -140,7 +84,7 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
         throw std::runtime_error("setupStream invalid channel selection");
     }
     
-    SoapySDR_logf(SOAPY_SDR_INFO, "Wants format %s", format.c_str());
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
@@ -158,8 +102,6 @@ void SoapyFCDPP::closeStream(SoapySDR::Stream *stream)
     if (d_pcm_handle != nullptr) {
         snd_pcm_close(d_pcm_handle);
     }
-    
-    
 }
 
 size_t SoapyFCDPP::getStreamMTU(SoapySDR::Stream *stream) const
@@ -169,12 +111,12 @@ size_t SoapyFCDPP::getStreamMTU(SoapySDR::Stream *stream) const
 }
 
 int SoapyFCDPP::activateStream(SoapySDR::Stream *stream,
-                                 const int flags,
-                                 const long long timeNs,
-                                 const size_t numElems)
+                               const int flags,
+                               const long long timeNs,
+                               const size_t numElems)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "activate stream");
-
+    
     // snd_pcm_prepare(d_pcm_handle);
     snd_pcm_start(d_pcm_handle);
     
@@ -184,7 +126,7 @@ int SoapyFCDPP::activateStream(SoapySDR::Stream *stream,
 int SoapyFCDPP::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "deactivate stream");
- 
+    
     if (flags != 0) return SOAPY_SDR_NOT_SUPPORTED;
     
     snd_pcm_drop(d_pcm_handle);
@@ -194,11 +136,11 @@ int SoapyFCDPP::deactivateStream(SoapySDR::Stream *stream, const int flags, cons
 }
 
 int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
-                             void * const *buffs,
-                             const size_t numElems,
-                             int &flags,
-                             long long &timeNs,
-                             const long timeoutUs)
+                           void * const *buffs,
+                           const size_t numElems,
+                           int &flags,
+                           long long &timeNs,
+                           const long timeoutUs)
 {
     // This function has to be well defined at all times
     if (d_pcm_handle == nullptr) {
@@ -274,84 +216,114 @@ std::vector<std::string> SoapyFCDPP::listGains(const int direction, const size_t
     //list available gain elements,
     //the functions below have a "name" parameter
     std::vector<std::string> results;
-    // results.push_back("AUDIO");
+    results.push_back("LNA");
+    results.push_back("Mixer");
+    results.push_back("IF");
     return results;
 }
 
 bool SoapyFCDPP::hasGainMode(const int direction, const size_t channel) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "hasGainMode");
-    
+    SoapySDR_log(SOAPY_SDR_DEBUG, "hasGainMode");
     return false;
 }
 
 void SoapyFCDPP::setGainMode(const int direction, const size_t channel, const bool automatic)
 {
-    d_agc_mode = automatic;
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting Audio AGC: %s", automatic ? "Automatic" : "Manual");
+    SoapySDR_log(SOAPY_SDR_DEBUG, "setGainMode");
+    // d_agc_mode = automatic;
+    //SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting Audio AGC: %s", automatic ? "Automatic" : "Manual");
 }
 
 bool SoapyFCDPP::getGainMode(const int direction, const size_t channel) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "getGainMode");
-    
-    return d_agc_mode;
+    SoapySDR_log(SOAPY_SDR_DEBUG, "getGainMode");
+    return false;
 }
 
 void SoapyFCDPP::setGain(const int direction, const size_t channel, const double value)
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "setGain");
-    
+    SoapySDR_log(SOAPY_SDR_DEBUG, "setGain");
     SoapySDR::Device::setGain(direction, channel, value);
 }
 
 void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::string &name, const double value)
 {
-    SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting gain: %f", value);
+    SoapySDR_logf(SOAPY_SDR_INFO, "Setting %s gain: %f", name.c_str(), value);
+    
+    if (name == "LNA" && d_lna_gain != value) {
+        if(fcdpp_set_lna_gain(d_handle, floor(value)) > 0)
+            d_lna_gain = value;
+    } else if (name == "Mixer" && d_mixer_gain != value) {
+        if(fcdpp_set_mixer_gain(d_handle, floor(value)) > 0)
+            d_mixer_gain = value;
+    } else if (name == "IF" != d_if_gain != value){
+        if(fcdpp_set_if_gain(d_handle, floor(value)) > 0)
+            d_if_gain = value;
+    }
 }
 
 double SoapyFCDPP::getGain(const int direction, const size_t channel, const std::string &name) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "getGain");
-    return 0;
+    SoapySDR_log(SOAPY_SDR_DEBUG, "getGain");
+    if (name == "LNA") {
+        return d_lna_gain;
+    } else if (name == "Mixer") {
+        return d_mixer_gain;
+    } else if (name == "IF"){
+        return d_if_gain;
+    } else {
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "getGain: unknown element %s", name.c_str());
+        return 0.;
+    }
 }
 
 SoapySDR::Range SoapyFCDPP::getGainRange(const int direction, const size_t channel, const std::string &name) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "getGainRange");
-    return SoapySDR::Range(0, 100);
+    SoapySDR_log(SOAPY_SDR_DEBUG, "getGainRange");
+    
+    if (name == "LNA") {
+        return SoapySDR::Range(0,1,1);
+    } else if (name == "Mixer") {
+        return SoapySDR::Range(0,1,1);
+    } else if (name == "IF"){
+        return SoapySDR::Range(0,59,1);
+    } else {
+        throw std::runtime_error("getGainRange: unknown gain element");
+    }
 }
 
 // Frequency
 void SoapyFCDPP::setFrequency(const int direction,
-                                const size_t channel,
-                                const std::string &name,
-                                const double frequency,
-                                const SoapySDR::Kwargs &args)
+                              const size_t channel,
+                              const std::string &name,
+                              const double frequency,
+                              const SoapySDR::Kwargs &args)
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "setFrequency");
+    SoapySDR_log(SOAPY_SDR_DEBUG, "setFrequency");
     
-    if (name == "RF")
+    int err;
+
+    if (name == "RF" && d_frequency != frequency)
     {
-        d_frequency = frequency;
+        err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency));
+        if (err > 0) {
+            d_frequency = frequency;
+        } else {
+            SoapySDR_log(SOAPY_SDR_ERROR, "setFrequency failed to set device frequency");
+        }
     }
 }
 
 double SoapyFCDPP::getFrequency(const int direction, const size_t channel, const std::string &name) const
 {
     SoapySDR_logf(SOAPY_SDR_INFO, "getFrequency");
-    if (name == "RF")
-    {
-        return d_frequency;
-    } else {
-        throw std::runtime_error("getFrequency for nonexisting tuner");
-    }
+    return d_frequency;
 }
 
 std::vector<std::string> SoapyFCDPP::listFrequencies(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "listFrequencies");
-    
     std::vector<std::string> names;
     names.push_back("RF");
     return names;
@@ -364,7 +336,8 @@ SoapySDR::RangeList SoapyFCDPP::getFrequencyRange(const int direction, const siz
     SoapySDR::RangeList results;
     if (name == "RF")
     {
-        results.push_back(SoapySDR::Range(0, 45000000));
+        results.push_back(SoapySDR::Range(150000, 240000000));
+        results.push_back(SoapySDR::Range(420000000, 1900000000));
     }
     return results;
 }
@@ -381,15 +354,12 @@ SoapySDR::ArgInfoList SoapyFCDPP::getFrequencyArgsInfo(const int direction, cons
 
 void SoapyFCDPP::setSampleRate(const int direction, const size_t channel, const double rate)
 {
-    SoapySDR_logf(SOAPY_SDR_INFO, "setSampleRate %f", rate);
-    
-    d_sample_rate = rate;
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "setSampleRate %f", rate);
 }
 
 double SoapyFCDPP::getSampleRate(const int direction, const size_t channel) const
 {
-    SoapySDR_logf(SOAPY_SDR_INFO, "getSampleRate %f", d_sample_rate);
-    
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "getSampleRate %f", d_sample_rate);
     return d_sample_rate;
 }
 
@@ -419,20 +389,19 @@ SoapySDR::ArgInfoList SoapyFCDPP::getSettingInfo(void) const
 {
     SoapySDR::ArgInfoList settings;
     
-    SoapySDR_log(SOAPY_SDR_INFO, "getSettingInfo");
+    SoapySDR_log(SOAPY_SDR_DEBUG, "getSettingInfo");
     
     return settings;
 }
 
 void SoapyFCDPP::writeSetting(const std::string &key, const std::string &value)
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "writeSetting");
+    SoapySDR_log(SOAPY_SDR_DEBUG, "writeSetting");
 }
 
 std::string SoapyFCDPP::readSetting(const std::string &key) const
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "readSetting");
-    
+    SoapySDR_log(SOAPY_SDR_DEBUG, "readSetting");
     return "empty";
 }
 
@@ -443,32 +412,38 @@ std::vector<double> SoapyFCDPP::listBandwidths(const int direction, const size_t
     return results;
 }
 
-
 // Registry
 SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "findFCDPP");
     
     SoapySDR::KwargsList results;
-    SoapySDR::Kwargs soapyInfo;
     
-    soapyInfo["device_id"] = std::to_string(0);
-    soapyInfo["label"] = "fcdpp";
-    soapyInfo["device"] = "fcdpp";
-    // add some more
+    // Find all devices
+    struct hid_device_info *devs, *cur_dev;
     
-    results.push_back(soapyInfo);
+    devs = hid_enumerate(FCDPP_VENDOR_ID, FCDPP_PRODUCT_ID);
+    cur_dev = devs;
+    while (cur_dev) {
+        SoapySDR::Kwargs soapyInfo;
+        SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
+        soapyInfo["device"] = "hw:3,0";
+        soapyInfo["path"] = cur_dev->path;
+        cur_dev = cur_dev->next;
+        results.push_back(soapyInfo);
+    }
+    hid_free_enumeration(devs);
     
     return results;
 }
 
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
+    SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
     SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
     
-    //create an instance of the device object given the args
-    //here we will translate args into something used in the constructor
-    return (SoapySDR::Device*) new SoapyFCDPP();
+    std::string path = args.at("path");
+    return (SoapySDR::Device*) new SoapyFCDPP(path);
 }
-    
+
 static SoapySDR::Registry registerFCDPP("fcdpp", &findFCDPP, &makeFCDPP, SOAPY_SDR_ABI_VERSION);
