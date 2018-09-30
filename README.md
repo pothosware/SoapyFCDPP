@@ -10,16 +10,17 @@ Unlike the gr-osmosdr it's doesn't depend on the gr-fcdproplus block but is stan
 
 ## Dependencies
 
-* GNUradio
 * SoapySDR
-* SoapyRemote
 * libasound2 (ALSA)
 * libhidapi
 * meson and ninja for building
 
 ## How do I use it?
 
+I have only tested with the latest SoapySDR / SoapyRemote.
+
 ```bash
+# build
 git clone https://github.com/ast/SoapyFCDPP.git
 cd SoapyFCDPP/SoapyFCDPP
 meson build
@@ -28,8 +29,18 @@ ninja -C build
 # Then copy build/libsoapyfcdpp.so to /usr/local/lib/SoapySDR/modules0.7
 # Should appear in the list
 SoapySDRUtil --info
+```
 
 ```
+# Run server
+SoapySDRServer --bind="0.0.0.0:1234"
+
+# Device string in GQRX
+soapy=0,remote=hostname.local:1234
+
+```
+
+* Input rate: 192000
 
 To access USB without being root you need this:
 
@@ -39,10 +50,7 @@ To access USB without being root you need this:
 # /etc/udev/rules.d/81-funcube.rules
 
 # HIDAPI/hidraw:
-KERNEL=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="fb31", GROUP="audio", MODE="0666", SIMLINK+="hidfcd"
-
-# Udev rule for the Funcube Dongle to be used with libusb
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="fb31", GROUP="audio", MODE="0666", SYMLINK+="usbfcd"
+KERNEL=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="fb31", GROUP="audio", MODE="0666", SYMLINK+="hidfcd"
 ```
 
 ## License

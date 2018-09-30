@@ -13,6 +13,8 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name, snd_pcm_uframes_t frames, snd_p
     snd_pcm_t *pcm_handle = NULL;
     snd_pcm_hw_params_t *hwparams;
     
+    // TODO: add ALSA error string
+    
     const unsigned int rate = 192000;      // Fixed sample rate of VFZSDR.
     const unsigned int periods = 4;       // Number of periods in ALSA ringbuffer.
     

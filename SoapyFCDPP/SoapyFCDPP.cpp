@@ -90,7 +90,7 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
     assert(d_converter_func != nullptr);
     
-    d_pcm_handle = alsa_pcm_handle("hw:3,0", d_period_size, SND_PCM_STREAM_CAPTURE);
+    d_pcm_handle = alsa_pcm_handle("hw:CARD=V20,DEV=0", d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
     
     return (SoapySDR::Stream *) this;
@@ -100,6 +100,7 @@ void SoapyFCDPP::closeStream(SoapySDR::Stream *stream)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "close stream");
     if (d_pcm_handle != nullptr) {
+        snd_pcm_drop(d_pcm_handle);
         snd_pcm_close(d_pcm_handle);
     }
 }
@@ -302,7 +303,7 @@ void SoapyFCDPP::setFrequency(const int direction,
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "setFrequency");
     
-    int err;
+    int err = 1;
 
     if (name == "RF" && d_frequency != frequency)
     {
@@ -426,7 +427,7 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     while (cur_dev) {
         SoapySDR::Kwargs soapyInfo;
         SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
-        soapyInfo["device"] = "hw:3,0";
+        soapyInfo["device"] = "hw:CARD=V20,DEV=0";
         soapyInfo["path"] = cur_dev->path;
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);
@@ -441,6 +442,7 @@ SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
     SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
     SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
     
+    // What was I doing with this path?
     std::string path = args.at("path");
     return (SoapySDR::Device*) new SoapyFCDPP(path);
 }
