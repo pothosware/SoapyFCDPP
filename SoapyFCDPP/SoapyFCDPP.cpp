@@ -3,11 +3,11 @@
 
 #include <algorithm>
 
-
 SoapyFCDPP::SoapyFCDPP(const std::string &path) :
+d_pcm_handle(nullptr),
 d_period_size(4096),
-d_frequency(0),
 d_sample_rate(192000.),
+d_frequency(0),
 d_lna_gain(0),
 d_mixer_gain(0),
 d_if_gain(0)
@@ -164,7 +164,7 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
     // no program is complete without a goto
 again:
     // read numElems or d_period_size
-    frames = snd_pcm_readi(d_pcm_handle, &d_buff[0], std::min(d_period_size, numElems));
+    frames = snd_pcm_readi(d_pcm_handle, &d_buff[0], std::min<size_t>(d_period_size, numElems));
     // try to handle xruns
     if(frames < 0) {
         err = (int) frames;
@@ -258,7 +258,7 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
     } else if (name == "Mixer" && d_mixer_gain != value) {
         if(fcdpp_set_mixer_gain(d_handle, floor(value)) > 0)
             d_mixer_gain = value;
-    } else if (name == "IF" != d_if_gain != value){
+    } else if (name == "IF" && d_if_gain != value){
         if(fcdpp_set_if_gain(d_handle, floor(value)) > 0)
             d_if_gain = value;
     }
@@ -415,7 +415,7 @@ std::vector<double> SoapyFCDPP::listBandwidths(const int direction, const size_t
 // Registry
 SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "findFCDPP");
+    SoapySDR_log(SOAPY_SDR_TRACE, "findFCDPP");
     
     SoapySDR::KwargsList results;
     
@@ -440,7 +440,7 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
     SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
-    SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
+    SoapySDR_log(SOAPY_SDR_TRACE, "makeFCDPP");
     
     // What was I doing with this path?
     std::string path = args.at("path");

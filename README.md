@@ -15,7 +15,24 @@ Unlike the gr-osmosdr it's doesn't depend on the gr-fcdproplus block but is stan
 * libhidapi
 * meson and ninja for building
 
-## How do I use it?
+### Ubuntu
+
+```bash
+sudo apt-get install libhidapi-dev libasound2-dev
+```
+
+## Build with cmake
+
+```bash
+# build
+git clone https://github.com/ast/SoapyFCDPP.git
+cd SoapyFCDPP
+mkdir build; cd build
+cmake ../
+make && sudo make install
+```
+
+## Build with meson
 
 I have only tested with the latest SoapySDR / SoapyRemote.
 
