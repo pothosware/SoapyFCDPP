@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B127923420B4A9D0000CA9FD /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B127923320B4A9D0000CA9FD /* main.cpp */; };
 		B127923E20B4AA4E000CA9FD /* SoapyFCDPP.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */; };
 		B127923F20B4AA4E000CA9FD /* alsa.c in Sources */ = {isa = PBXBuildFile; fileRef = B127923C20B4AA4E000CA9FD /* alsa.c */; };
 		B127924420B4B15F000CA9FD /* fcd.c in Sources */ = {isa = PBXBuildFile; fileRef = B127924320B4B15F000CA9FD /* fcd.c */; };
@@ -27,7 +26,6 @@
 
 /* Begin PBXFileReference section */
 		B127923020B4A9D0000CA9FD /* SoapyFCDPP */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SoapyFCDPP; sourceTree = BUILT_PRODUCTS_DIR; };
-		B127923320B4A9D0000CA9FD /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		B127923A20B4AA4E000CA9FD /* SoapyFCDPP.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = SoapyFCDPP.hpp; sourceTree = "<group>"; };
 		B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SoapyFCDPP.cpp; sourceTree = "<group>"; };
 		B127923C20B4AA4E000CA9FD /* alsa.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = alsa.c; sourceTree = "<group>"; };
@@ -75,7 +73,6 @@
 				B127924020B4AA99000CA9FD /* alsa */,
 				B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */,
 				B127923A20B4AA4E000CA9FD /* SoapyFCDPP.hpp */,
-				B127923320B4A9D0000CA9FD /* main.cpp */,
 			);
 			path = SoapyFCDPP;
 			sourceTree = "<group>";
@@ -157,7 +154,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B127923E20B4AA4E000CA9FD /* SoapyFCDPP.cpp in Sources */,
-				B127923420B4A9D0000CA9FD /* main.cpp in Sources */,
 				B127923F20B4AA4E000CA9FD /* alsa.c in Sources */,
 				B127924420B4B15F000CA9FD /* fcd.c in Sources */,
 			);

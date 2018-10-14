@@ -3,16 +3,18 @@
 
 #include <algorithm>
 
-SoapyFCDPP::SoapyFCDPP(const std::string &path) :
+SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device) :
 d_pcm_handle(nullptr),
 d_period_size(4096),
 d_sample_rate(192000.),
 d_frequency(0),
 d_lna_gain(0),
 d_mixer_gain(0),
-d_if_gain(0)
+d_if_gain(0),
+d_hid_path(hid_path),
+d_alsa_device(alsa_device)
 {
-    d_handle = hid_open_path(path.c_str());
+    d_handle = hid_open_path(d_hid_path.c_str());
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed");
     }
@@ -90,7 +92,8 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
     assert(d_converter_func != nullptr);
     
-    d_pcm_handle = alsa_pcm_handle("hw:CARD=V20,DEV=0", d_period_size, SND_PCM_STREAM_CAPTURE);
+    //d_pcm_handle = alsa_pcm_handle("hw:CARD=V20,DEV=0", d_period_size, SND_PCM_STREAM_CAPTURE);
+    d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
     
     return (SoapySDR::Stream *) this;
@@ -162,6 +165,7 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
     snd_pcm_sframes_t frames = 0;
     int err = 0;
     // no program is complete without a goto
+    // TODO: or maybe I should just put a for loop here?
 again:
     // read numElems or d_period_size
     frames = snd_pcm_readi(d_pcm_handle, &d_buff[0], std::min<size_t>(d_period_size, numElems));
@@ -245,6 +249,7 @@ bool SoapyFCDPP::getGainMode(const int direction, const size_t channel) const
 void SoapyFCDPP::setGain(const int direction, const size_t channel, const double value)
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "setGain");
+    // The superclass actually does something here
     SoapySDR::Device::setGain(direction, channel, value);
 }
 
@@ -256,10 +261,13 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
         if(fcdpp_set_lna_gain(d_handle, floor(value)) > 0)
             d_lna_gain = value;
     } else if (name == "Mixer" && d_mixer_gain != value) {
-        if(fcdpp_set_mixer_gain(d_handle, floor(value)) > 0)
+        // SoapyDevice seems to only accept gain ranges but on the FCDpp
+        // these are toggles. As such put a threshold at 0.5.
+        if(fcdpp_set_mixer_gain(d_handle, uint8_t(value > 0.5)) > 0)
             d_mixer_gain = value;
     } else if (name == "IF" && d_if_gain != value){
-        if(fcdpp_set_if_gain(d_handle, floor(value)) > 0)
+        // Same as above
+        if(fcdpp_set_if_gain(d_handle, uint8_t(value > 0.5)) > 0)
             d_if_gain = value;
     }
 }
@@ -427,8 +435,11 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     while (cur_dev) {
         SoapySDR::Kwargs soapyInfo;
         SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
-        soapyInfo["device"] = "hw:CARD=V20,DEV=0";
-        soapyInfo["path"] = cur_dev->path;
+        soapyInfo["hid_path"] = cur_dev->path;
+        // TODO:
+        // Currently only one dongle will work and I don't know how to associate
+        // HID path with an alsa path. Perhaps this could be an option to the driver.
+        soapyInfo["alsa_device"] = "hw:CARD=V20,DEV=0";
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);
     }
@@ -442,9 +453,10 @@ SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
     SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
     SoapySDR_log(SOAPY_SDR_TRACE, "makeFCDPP");
     
-    // What was I doing with this path?
-    std::string path = args.at("path");
-    return (SoapySDR::Device*) new SoapyFCDPP(path);
+    std::string hid_path = args.at("hid_path");
+    std::string alsa_device = args.at("alsa_device");
+    return (SoapySDR::Device*) new SoapyFCDPP(hid_path, alsa_device);
 }
 
+/* Register this driver */
 static SoapySDR::Registry registerFCDPP("fcdpp", &findFCDPP, &makeFCDPP, SOAPY_SDR_ABI_VERSION);

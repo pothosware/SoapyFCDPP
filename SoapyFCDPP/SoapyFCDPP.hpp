@@ -32,7 +32,6 @@ private:
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
     std::vector<int32_t> d_buff;
-    // bool d_agc_mode;
 
     // Device properties
     const double d_sample_rate;
@@ -40,6 +39,8 @@ private:
     double d_lna_gain;
     double d_mixer_gain;
     double d_if_gain;
+    const std::string d_hid_path;
+    const std::string d_alsa_device;
     
     SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
 
@@ -47,7 +48,7 @@ private:
     hid_device *d_handle;
     
 public:
-    SoapyFCDPP(const std::string &path);
+    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device);
     ~SoapyFCDPP();
     
     //Implement all applicable virtual methods from SoapySDR::Device
