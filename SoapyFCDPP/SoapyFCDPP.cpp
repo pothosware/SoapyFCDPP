@@ -2,6 +2,7 @@
 #include <SoapySDR/Logger.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device) :
 d_pcm_handle(nullptr),
@@ -236,8 +237,6 @@ bool SoapyFCDPP::hasGainMode(const int direction, const size_t channel) const
 void SoapyFCDPP::setGainMode(const int direction, const size_t channel, const bool automatic)
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "setGainMode");
-    // d_agc_mode = automatic;
-    //SoapySDR_logf(SOAPY_SDR_DEBUG, "Setting Audio AGC: %s", automatic ? "Automatic" : "Manual");
 }
 
 bool SoapyFCDPP::getGainMode(const int direction, const size_t channel) const
@@ -258,17 +257,19 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
     SoapySDR_logf(SOAPY_SDR_INFO, "Setting %s gain: %f", name.c_str(), value);
     
     if (name == "LNA" && d_lna_gain != value) {
-        if(fcdpp_set_lna_gain(d_handle, floor(value)) > 0)
-            d_lna_gain = value;
+        d_lna_gain = value;
+        fcdpp_set_lna_gain(d_handle, (value > 0.5));
     } else if (name == "Mixer" && d_mixer_gain != value) {
         // SoapyDevice seems to only accept gain ranges but on the FCDpp
         // these are toggles. As such put a threshold at 0.5.
-        if(fcdpp_set_mixer_gain(d_handle, uint8_t(value > 0.5)) > 0)
-            d_mixer_gain = value;
+        d_mixer_gain = value;
+        fcdpp_set_mixer_gain(d_handle, (value > 0.5));
     } else if (name == "IF" && d_if_gain != value){
         // Same as above
-        if(fcdpp_set_if_gain(d_handle, uint8_t(value > 0.5)) > 0)
-            d_if_gain = value;
+        d_if_gain = roundf(value);
+        fcdpp_set_if_gain(d_handle, floor(value));
+    } else {
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "setGain: unknown element %s", name.c_str());
     }
 }
 
@@ -435,6 +436,8 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     while (cur_dev) {
         SoapySDR::Kwargs soapyInfo;
         SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
+        // This is the name that shows up.
+        soapyInfo["device"] = "Funcube Dongle Pro+";
         soapyInfo["hid_path"] = cur_dev->path;
         // TODO:
         // Currently only one dongle will work and I don't know how to associate

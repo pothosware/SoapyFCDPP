@@ -73,9 +73,7 @@ int fcdpp_set_lna_gain(hid_device *device, uint8_t gain)
     buf[1] = FCD_HID_CMD_SET_LNA_GAIN;
     buf[2] = gain;
     err = hid_write(device, buf, BUF_LEN);
-    //err = hid_wr_timeout(device, buf, BUF_LEN);
-    if (err < 0) return err;
-    return buf[1];
+    return err;
 }
 
 tuner_rf_filter_t fcdpp_get_rf_filter(hid_device *device)
@@ -135,11 +133,8 @@ int fcdpp_set_if_gain(hid_device *device, uint8_t gain)
     uint8_t buf[BUF_LEN] = { 0x00 };
     buf[1] = FCD_HID_CMD_SET_IF_GAIN;
     buf[2] = gain;
-    //err = hid_wr_timeout(device, buf, BUF_LEN);
     err = hid_write(device, buf, BUF_LEN);
     return err;
-    //if (err < 0) return err;
-    //return buf[1];
 }
 
 int fcdpp_get_mixer_gain(hid_device *device) {
@@ -159,9 +154,6 @@ int fcdpp_set_mixer_gain(hid_device *device, uint8_t gain)
     buf[1] = FCD_HID_CMD_SET_MIXER_GAIN;
     buf[2] = gain;
     err = hid_write(device, buf, BUF_LEN);
-    //err = hid_wr_timeout(device, buf, BUF_LEN);
-    //if (err < 0) return err;
-    //return buf[1];
     return err;
 }
 
@@ -187,9 +179,6 @@ int fcdpp_set_freq_hz(hid_device *device, uint32_t freq) {
     buf[4] = (uint8_t) (freq >> 16);
     buf[5] = (uint8_t) (freq >> 24);
     err = hid_write(device, buf, BUF_LEN);
-    //err = hid_wr_timeout(device, buf, BUF_LEN);
-    //if (err < 0) return err;
-    //return buf[1];
     return err;
 }
 
