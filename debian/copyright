@@ -1,0 +1,8 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: soapyfcdpp
+Source: https://github.com/pothosware/SoapyFCDPP/wiki
+
+Files: *
+Copyright:
+    Copyright (c) 2018 Albin Stigo
+License: TODO
