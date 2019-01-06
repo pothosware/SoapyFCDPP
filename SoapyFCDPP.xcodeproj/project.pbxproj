@@ -25,6 +25,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B104DEC921E296C8009BC3CF /* LICENSE_1_0.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE_1_0.txt; sourceTree = SOURCE_ROOT; };
 		B127923020B4A9D0000CA9FD /* SoapyFCDPP */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SoapyFCDPP; sourceTree = BUILT_PRODUCTS_DIR; };
 		B127923A20B4AA4E000CA9FD /* SoapyFCDPP.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = SoapyFCDPP.hpp; sourceTree = "<group>"; };
 		B127923B20B4AA4E000CA9FD /* SoapyFCDPP.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SoapyFCDPP.cpp; sourceTree = "<group>"; };
@@ -68,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				B127924520B4B1B1000CA9FD /* README.md */,
+				B104DEC921E296C8009BC3CF /* LICENSE_1_0.txt */,
 				B127924620B4B1BA000CA9FD /* meson.build */,
 				B127924120B4B136000CA9FD /* fcdpp */,
 				B127924020B4AA99000CA9FD /* alsa */,
@@ -210,9 +212,15 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"/Users/albin/src/alsa-lib-1.1.4.1/include",
+					/Users/albin/src/SoapySDR/include,
+					/usr/local/include,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = "";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -259,8 +267,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"/Users/albin/src/alsa-lib-1.1.4.1/include",
+					/Users/albin/src/SoapySDR/include,
+					/usr/local/include,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = "";
 				SDKROOT = macosx;
 			};
 			name = Release;

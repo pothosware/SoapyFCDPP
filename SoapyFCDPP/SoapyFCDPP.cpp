@@ -1,13 +1,17 @@
-#include "SoapyFCDPP.hpp"
-#include <SoapySDR/Logger.hpp>
+//  SoapyFCDPP.cpp
+//  Copyright (c) 2018 Albin Stigo
+//  SPDX-License-Identifier: BSL-1.0
 
+#include "SoapyFCDPP.hpp"
+
+#include <SoapySDR/Logger.hpp>
 #include <algorithm>
 #include <cmath>
 
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device) :
 d_pcm_handle(nullptr),
-d_period_size(4096),
-d_sample_rate(192000.),
+d_period_size(2048), // I find that a shorter period doesn't work well on the rbpi3.
+d_sample_rate(192000.), // This is the default samplerate
 d_frequency(0),
 d_lna_gain(0),
 d_mixer_gain(0),
@@ -17,9 +21,9 @@ d_alsa_device(alsa_device)
 {
     d_handle = hid_open_path(d_hid_path.c_str());
     if (d_handle == nullptr) {
-        throw std::runtime_error("hid_open_path failed");
+        throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
     }
-    // Sample buffer
+    // Sample buffer x 2 because complex data.
     d_buff.resize(2 * d_period_size);
 }
 
@@ -65,8 +69,8 @@ std::vector<std::string> SoapyFCDPP::getStreamFormats(const int direction, const
 std::string SoapyFCDPP::getNativeStreamFormat(const int direction, const size_t channel, double &fullScale) const
 {
     // TODO
-    fullScale = (1 << 24);
-    return "CS32";
+    fullScale = INT16_MAX;
+    return "CS16";
 }
 
 SoapySDR::ArgInfoList SoapyFCDPP::getStreamArgsInfo(const int direction, const size_t channel) const
@@ -93,7 +97,6 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
     assert(d_converter_func != nullptr);
     
-    //d_pcm_handle = alsa_pcm_handle("hw:CARD=V20,DEV=0", d_period_size, SND_PCM_STREAM_CAPTURE);
     d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
     
@@ -120,10 +123,15 @@ int SoapyFCDPP::activateStream(SoapySDR::Stream *stream,
                                const long long timeNs,
                                const size_t numElems)
 {
+    int err = 0;
+    
     SoapySDR_log(SOAPY_SDR_INFO, "activate stream");
     
-    // snd_pcm_prepare(d_pcm_handle);
-    snd_pcm_start(d_pcm_handle);
+    return 0;
+    err = snd_pcm_prepare(d_pcm_handle);
+    if (err < 0) {
+        SoapySDR_logf(SOAPY_SDR_WARNING, "snd_pcm_start %s", snd_strerror(err));
+    }
     
     return 0;
 }
@@ -131,11 +139,11 @@ int SoapyFCDPP::activateStream(SoapySDR::Stream *stream,
 int SoapyFCDPP::deactivateStream(SoapySDR::Stream *stream, const int flags, const long long timeNs)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "deactivate stream");
-    
-    if (flags != 0) return SOAPY_SDR_NOT_SUPPORTED;
-    
+    // drop stops recording imiditatly
     snd_pcm_drop(d_pcm_handle);
-    snd_pcm_prepare(d_pcm_handle);
+    
+    if (flags != 0)
+        return SOAPY_SDR_NOT_SUPPORTED;
     
     return 0;
 }
@@ -147,45 +155,69 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                            long long &timeNs,
                            const long timeoutUs)
 {
+    int err = 0;
+    snd_pcm_sframes_t n_err = 0;
+    
     // This function has to be well defined at all times
     if (d_pcm_handle == nullptr) {
         return 0;
     }
     
-    // Are we running?
-    if (snd_pcm_state(d_pcm_handle) != SND_PCM_STATE_RUNNING) {
-        return 0;
-    }
-    
-    // Timeout if not ready
-    if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000)) == 0) {
-        return SOAPY_SDR_TIMEOUT;
-    }
-    
-    // Read from ALSA
-    snd_pcm_sframes_t frames = 0;
-    int err = 0;
-    // no program is complete without a goto
-    // TODO: or maybe I should just put a for loop here?
-again:
-    // read numElems or d_period_size
-    frames = snd_pcm_readi(d_pcm_handle, &d_buff[0], std::min<size_t>(d_period_size, numElems));
-    // try to handle xruns
-    if(frames < 0) {
-        err = (int) frames;
-        if(snd_pcm_recover(d_pcm_handle, err, 0) == 0) {
-            SoapySDR_logf(SOAPY_SDR_ERROR, "readStream recoverd from %s", snd_strerror(err));
-            goto again;
-        } else {
-            SoapySDR_logf(SOAPY_SDR_ERROR, "readStream error: %s", snd_strerror(err));
+    snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
+    switch (state) {
+        case SND_PCM_STATE_OPEN:
+            // not setup properly, we should not get here.
             return SOAPY_SDR_STREAM_ERROR;
-        }
+        case SND_PCM_STATE_SETUP:
+            if((err = snd_pcm_prepare(d_pcm_handle)) < 0) {
+                // could not prepare
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_prepare %s", snd_strerror(err));
+                return SOAPY_SDR_STREAM_ERROR;
+            } // fallthrough
+        case SND_PCM_STATE_PREPARED:
+            // not started
+            if((err = snd_pcm_start(d_pcm_handle)) < 0) {
+                // could not start
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_start %s", snd_strerror(err));
+                return SOAPY_SDR_STREAM_ERROR;
+            } // fallthrough
+        case SND_PCM_STATE_RUNNING:
+            // wait for timeout
+            if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000.f)) == 0)
+                return SOAPY_SDR_TIMEOUT;
+            
+            // read but no more than one ALSA period. Less will probably be requested.
+            n_err = snd_pcm_readi(d_pcm_handle,
+                                  &d_buff[0],
+                                  std::min<size_t>(d_period_size, numElems));
+            if(n_err >= 0) {
+                // read ok, convert and return.
+                d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
+                return (int) n_err;
+            } // error, fallthrough
+        case SND_PCM_STATE_XRUN:
+            err = (int) n_err;
+            // try to recover from error.
+            if(snd_pcm_recover(d_pcm_handle, err, 0) == 0) {
+                // Recover ok
+                SoapySDR_logf(SOAPY_SDR_ERROR,
+                              "readStream recoverd from %s",
+                              snd_strerror(err));
+                return SOAPY_SDR_OVERFLOW;
+            } else {
+                // Could not recover
+                SoapySDR_logf(SOAPY_SDR_ERROR, "readStream error: %s", snd_strerror(err));
+                return SOAPY_SDR_STREAM_ERROR;
+            } // this clause always returns
+        case SND_PCM_STATE_DRAINING:
+        case SND_PCM_STATE_PAUSED:
+        case SND_PCM_STATE_SUSPENDED:
+        case SND_PCM_STATE_DISCONNECTED:
+            SoapySDR_logf(SOAPY_SDR_ERROR,
+                          "unknown ALSA state: %s",
+                          state);
+            return SOAPY_SDR_STREAM_ERROR;
     }
-    
-    // Convert. Format is setup in setupStream. 1.0 means to do nothing.
-    d_converter_func(&d_buff[0], buffs[0], frames, 1.0);
-    
-    return (int)frames;
 }
 
 
@@ -195,21 +227,18 @@ std::vector<std::string> SoapyFCDPP::listAntennas(const int direction, const siz
     
     std::vector<std::string> antennas;
     antennas.push_back("RX");
-    // antennas.push_back("TX");
     return antennas;
 }
 
 void SoapyFCDPP::setAntenna(const int direction, const size_t channel, const std::string &name)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "setAntenna");
-    // TODO
 }
 
 std::string SoapyFCDPP::getAntenna(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "getAntenna");
     return "RX";
-    // return "TX";
 }
 
 bool SoapyFCDPP::hasDCOffsetMode(const int direction, const size_t channel) const
@@ -313,7 +342,7 @@ void SoapyFCDPP::setFrequency(const int direction,
     SoapySDR_log(SOAPY_SDR_DEBUG, "setFrequency");
     
     int err = 1;
-
+    
     if (name == "RF" && d_frequency != frequency)
     {
         err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency));
@@ -440,8 +469,9 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
         soapyInfo["device"] = "Funcube Dongle Pro+";
         soapyInfo["hid_path"] = cur_dev->path;
         // TODO:
-        // Currently only one dongle will work and I don't know how to associate
-        // HID path with an alsa path. Perhaps this could be an option to the driver.
+        // * Currently only one dongle will work and I don't know how to associate
+        // * HID path with an alsa path. Perhaps this could be an option to the driver.
+        // * Perhaps make sample rate configureable.
         soapyInfo["alsa_device"] = "hw:CARD=V20,DEV=0";
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);

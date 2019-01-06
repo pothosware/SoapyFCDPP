@@ -1,10 +1,6 @@
-//
 //  SoapyFCDPP.hpp
-//  SoapyFCDPP
-//
-//  Created by Albin Stigö on 21/05/2018.
-//  Copyright © 2018 Albin Stigo. All rights reserved.
-//
+//  Copyright (c) 2018 Albin Stigo
+//  SPDX-License-Identifier: BSL-1.0
 
 #ifndef SoapyFCDPP_hpp
 #define SoapyFCDPP_hpp
@@ -50,8 +46,6 @@ private:
 public:
     SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device);
     ~SoapyFCDPP();
-    
-    //Implement all applicable virtual methods from SoapySDR::Device
     
     // Identification API
     std::string getDriverKey() const;

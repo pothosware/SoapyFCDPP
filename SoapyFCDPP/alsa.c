@@ -1,24 +1,24 @@
-//
 //  alsa.c
-//  fcdsdr
-//
-//  Created by Albin Stigö on 21/11/2017.
-//  Copyright © 2017 Albin Stigo. All rights reserved.
-//
+//  Copyright (c) 2018 Albin Stigo
+//  SPDX-License-Identifier: BSL-1.0
 
 #include "alsa.h"
 
 /* Try to get an ALSA capture handle */
-snd_pcm_t* alsa_pcm_handle(const char* pcm_name, snd_pcm_uframes_t frames, snd_pcm_stream_t stream) {
+snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
+                           snd_pcm_uframes_t frames_per_period,
+                           snd_pcm_stream_t stream) {
     snd_pcm_t *pcm_handle = NULL;
-    snd_pcm_hw_params_t *hwparams;
     
-    // TODO: add ALSA error string
+    snd_pcm_hw_params_t *hwparams;
+    //snd_pcm_sw_params_t *swparams;
     
     const unsigned int rate = 192000;      // Fixed sample rate of VFZSDR.
     const unsigned int periods = 4;       // Number of periods in ALSA ringbuffer.
+    const unsigned int channels = 2;
     
     snd_pcm_hw_params_alloca(&hwparams);
+    // snd_pcm_sw_params_alloca(&swparams);
     
     /* Open normal blocking */
     if (snd_pcm_open(&pcm_handle, pcm_name, stream, 0) < 0) {
@@ -38,9 +38,9 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name, snd_pcm_uframes_t frames, snd_p
         exit(EXIT_FAILURE);
     }
     
-    unsigned int channels = 2;
+    
     /* Set number of channels */
-    if (snd_pcm_hw_params_set_channels_near(pcm_handle, hwparams, &channels) < 0) {
+    if (snd_pcm_hw_params_set_channels(pcm_handle, hwparams, channels) < 0) {
         fprintf(stderr, "Error setting channels.\n");
         exit(EXIT_FAILURE);
     }
@@ -60,11 +60,11 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name, snd_pcm_uframes_t frames, snd_p
     
     /* Period size */
     int dir = 0;
-    if (snd_pcm_hw_params_set_period_size(pcm_handle, hwparams, frames, dir) < 0) {
+    if (snd_pcm_hw_params_set_period_size(pcm_handle, hwparams, frames_per_period, dir) < 0) {
         fprintf(stderr, "Error setting period size.\n");
         exit(EXIT_FAILURE);
     }
-        
+    
     /* Set number of periods. Periods used to be called fragments. */
     if (snd_pcm_hw_params_set_periods(pcm_handle, hwparams, periods, 0) < 0) {
         fprintf(stderr, "Error setting periods.\n");

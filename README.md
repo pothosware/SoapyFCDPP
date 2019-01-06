@@ -40,11 +40,11 @@ I have only tested with the latest SoapySDR / SoapyRemote.
 # build
 git clone https://github.com/ast/SoapyFCDPP.git
 cd SoapyFCDPP/SoapyFCDPP
-meson build
-ninja -C build
+meson build && cd build
+ninja install
+# Will put the driver in /usr/local/lib/SoapySDR/modules0.7
 
-# Then copy build/libsoapyfcdpp.so to /usr/local/lib/SoapySDR/modules0.7
-# Should appear in the list
+# Should then appear in the list:
 SoapySDRUtil --info
 ```
 
@@ -53,8 +53,7 @@ SoapySDRUtil --info
 SoapySDRServer --bind="0.0.0.0:1234"
 
 # Device string in GQRX
-soapy=0,remote=hostname.local:1234
-
+soapy=0,remote=hostname.local:1234,remote:driver=fcdpp
 ```
 
 * Input rate: 192000
@@ -66,17 +65,10 @@ To access USB without being root you need this:
 # Put this in:
 # /etc/udev/rules.d/81-funcube.rules
 
-# HIDAPI/hidraw:
-KERNEL=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="fb31", GROUP="audio", MODE="0666", SYMLINK+="hidfcd"
+# Udev rule for the Funcube Dongle to be used with libusb
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="fb31", GROUP="audio", MODE="0666", SYMLINK+="usbfcd"
 ```
 
 ## License
 
-Copyright 2018 Albin Stigö
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+Boost Software License 1.0 (BSL-1.0)
