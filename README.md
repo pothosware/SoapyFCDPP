@@ -2,6 +2,8 @@
 
 Soapy SDR plugin FUNcube Dongle Pro+
 
+https://github.com/pothosware/SoapyFCDPP/wiki
+
 ## What is this thing?
 
 This is my SoapySDR driver for the FUNcube dongle pro+. I have tested it on Raspberry Pi. I use it for streaming IQ data to GQRX.
