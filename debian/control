@@ -8,7 +8,7 @@ Build-Depends:
     cmake,
     libhidapi-dev,
     libsoapysdr-dev
-Standards-Version: 4.1.1
+Standards-Version: 4.1.4
 Homepage: https://github.com/pothosware/SoapyFCDPP/wiki
 Vcs-Git: https://github.com/pothosware/SoapyFCDPP.git
 Vcs-Browser: https://github.com/pothosware/SoapyFCDPP
