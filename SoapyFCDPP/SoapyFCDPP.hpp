@@ -33,8 +33,10 @@ private:
     const double d_sample_rate;
     double d_frequency;
     double d_lna_gain;
+    double d_bias_tee;
     double d_mixer_gain;
     double d_if_gain;
+    double d_trim_ppm;
     const std::string d_hid_path;
     const std::string d_alsa_device;
     
@@ -105,8 +107,16 @@ public:
     std::vector<std::string> listFrequencies(const int direction, const size_t channel) const;
     SoapySDR::RangeList getFrequencyRange(const int direction, const size_t channel, const std::string &name) const;
     SoapySDR::ArgInfoList getFrequencyArgsInfo(const int direction, const size_t channel) const;
-    
-    // Sample Rate API
+
+  // Correction
+
+    bool hasFrequencyCorrection(const int direction, const size_t channel) const;
+
+    void setFrequencyCorrection(const int direction, const size_t channel, const double value);
+
+    double getFrequencyCorrection(const int direction, const size_t channel) const;
+
+  // Sample Rate API
     void setSampleRate(const int direction, const size_t channel, const double rate);
     double getSampleRate(const int direction, const size_t channel) const;
     std::vector<double> listSampleRates(const int direction, const size_t channel) const;
