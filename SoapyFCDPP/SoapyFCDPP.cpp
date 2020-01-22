@@ -425,11 +425,13 @@ void SoapyFCDPP::setFrequencyCorrection(const int direction, const size_t channe
   SoapySDR_logf(SOAPY_SDR_DEBUG, "setFreqCorrection %f", value);
   d_trim_ppm = value;
 
-  int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
-  if (err <= 0) {
-    SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
-  }
-
+  if (d_frequency != 0.0)	// don't set correction until tuned initially
+    {
+      int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
+      if (err <= 0) {
+	SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
+      }
+    }
 }
 
 double SoapyFCDPP::getFrequencyCorrection(const int direction, const size_t channel) const
