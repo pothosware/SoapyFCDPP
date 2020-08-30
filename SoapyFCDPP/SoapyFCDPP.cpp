@@ -14,8 +14,10 @@ d_period_size(2048), // I find that a shorter period doesn't work well on the rb
 d_sample_rate(192000.), // This is the default samplerate
 d_frequency(0),
 d_lna_gain(0),
+d_bias_tee(false),
 d_mixer_gain(0),
 d_if_gain(0),
+d_trim_ppm(0.0),
 d_hid_path(hid_path),
 d_alsa_device(alsa_device)
 {
@@ -226,19 +228,39 @@ std::vector<std::string> SoapyFCDPP::listAntennas(const int direction, const siz
     SoapySDR_log(SOAPY_SDR_INFO, "listAntennas");
     
     std::vector<std::string> antennas;
-    antennas.push_back("RX");
+    antennas.push_back("Bias_T_Off");
+    antennas.push_back("Bias_T_On");
     return antennas;
 }
 
 void SoapyFCDPP::setAntenna(const int direction, const size_t channel, const std::string &name)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "setAntenna");
+    if (name == "Bias_T_Off")
+      {
+	if (d_bias_tee)
+	  {
+	    d_bias_tee = false;
+	    fcdpp_set_bias_tee(d_handle, d_bias_tee);
+	  }
+      }
+    else if (name == "Bias_T_On")
+      {
+	if (!d_bias_tee)
+	  {
+	    d_bias_tee = true;
+	    fcdpp_set_bias_tee(d_handle, d_bias_tee);
+	  }
+      }
+    else {
+        SoapySDR_logf(SOAPY_SDR_DEBUG, "setAntenna: unknown element %s", name.c_str());		 
+    }
 }
 
 std::string SoapyFCDPP::getAntenna(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "getAntenna");
-    return "RX";
+    return d_bias_tee ? "Bias_T_On" : "Bias_T_Off";
 }
 
 bool SoapyFCDPP::hasDCOffsetMode(const int direction, const size_t channel) const
@@ -252,6 +274,7 @@ std::vector<std::string> SoapyFCDPP::listGains(const int direction, const size_t
     //the functions below have a "name" parameter
     std::vector<std::string> results;
     results.push_back("LNA");
+    //results.push_back("BiasT");
     results.push_back("Mixer");
     results.push_back("IF");
     return results;
@@ -288,6 +311,7 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
     if (name == "LNA" && d_lna_gain != value) {
         d_lna_gain = value;
         fcdpp_set_lna_gain(d_handle, (value > 0.5));
+
     } else if (name == "Mixer" && d_mixer_gain != value) {
         // SoapyDevice seems to only accept gain ranges but on the FCDpp
         // these are toggles. As such put a threshold at 0.5.
@@ -345,7 +369,7 @@ void SoapyFCDPP::setFrequency(const int direction,
     
     if (name == "RF" && d_frequency != frequency)
     {
-        err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency));
+      err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency), d_trim_ppm);
         if (err > 0) {
             d_frequency = frequency;
         } else {
@@ -390,6 +414,31 @@ SoapySDR::ArgInfoList SoapyFCDPP::getFrequencyArgsInfo(const int direction, cons
     return freqArgs;
     
 }
+
+bool SoapyFCDPP::hasFrequencyCorrection(const int direction, const size_t channel) const
+{
+  return true;
+}
+
+void SoapyFCDPP::setFrequencyCorrection(const int direction, const size_t channel, const double value)
+{
+  SoapySDR_logf(SOAPY_SDR_DEBUG, "setFreqCorrection %f", value);
+  d_trim_ppm = value;
+
+  if (d_frequency != 0.0)	// don't set correction until tuned initially
+    {
+      int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
+      if (err <= 0) {
+	SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
+      }
+    }
+}
+
+double SoapyFCDPP::getFrequencyCorrection(const int direction, const size_t channel) const
+{
+  return d_trim_ppm;
+}
+
 
 void SoapyFCDPP::setSampleRate(const int direction, const size_t channel, const double rate)
 {

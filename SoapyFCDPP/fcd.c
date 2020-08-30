@@ -76,6 +76,28 @@ int fcdpp_set_lna_gain(hid_device *device, uint8_t gain)
     return err;
 }
 
+// Get BIAST gain on/off
+int fcdpp_get_bias_tee(hid_device *device)
+{
+    int err;
+    uint8_t buf[BUF_LEN] = { 0x00 };
+    buf[1] = FCD_HID_CMD_GET_BIAS_TEE;
+    err = hid_wr_timeout(device, buf, BUF_LEN);
+    if (err < 0) return err;
+    return buf[2];
+}
+
+// Set BIAST gain on/off
+int fcdpp_set_bias_tee(hid_device *device, uint8_t gain)
+{
+    int err = 0;
+    uint8_t buf[BUF_LEN] = { 0x00 };
+    buf[1] = FCD_HID_CMD_SET_BIAS_TEE;
+    buf[2] = gain;
+    err = hid_write(device, buf, BUF_LEN);
+    return err;
+}
+
 tuner_rf_filter_t fcdpp_get_rf_filter(hid_device *device)
 {
     int err = 0;
@@ -157,6 +179,7 @@ int fcdpp_set_mixer_gain(hid_device *device, uint8_t gain)
     return err;
 }
 
+#if 0
 int fcdpp_get_bias_tee(hid_device *device)
 {
     // TODO
@@ -168,10 +191,11 @@ int fcdpp_set_bias_tee(hid_device *device, uint8_t tee)
     // TODO
     return -1;
 }
-
-int fcdpp_set_freq_hz(hid_device *device, uint32_t freq) {
+#endif
+int fcdpp_set_freq_hz(hid_device *device, uint32_t freq, double trim) {
     int err;
     uint8_t buf[BUF_LEN] = { 0x00 };
+    freq = (uint32_t)((double) freq * (1+(1e-6*trim)));
     // buf[0] is ignored by the FCDP+
     buf[1] = FCD_HID_CMD_SET_FREQUENCY_HZ;
     buf[2] = (uint8_t) (freq);

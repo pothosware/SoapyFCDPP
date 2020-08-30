@@ -31,7 +31,7 @@ extern "C"
     int fcdpp_set_bias_tee(hid_device *device, uint8_t tee);
     int fcdpp_get_mixer_gain(hid_device *device);
     int fcdpp_set_mixer_gain(hid_device *device, uint8_t gain);
-    int fcdpp_set_freq_hz(hid_device *device, uint32_t freq);
+    int fcdpp_set_freq_hz(hid_device *device, uint32_t freq, double ppm);
     int fcdpp_set_freq_khz(hid_device *device, uint32_t freq);
     int fcdpp_get_freq_hz(hid_device *device);
     //void log_status(hid_device *device);
