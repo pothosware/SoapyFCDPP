@@ -10,7 +10,7 @@
 
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device) :
 d_pcm_handle(nullptr),
-d_period_size(2048), // I find that a shorter period doesn't work well on the rbpi3.
+d_period_size(48000), // I find that a shorter period doesn't work well on the rbpi3.
 d_sample_rate(192000.), // This is the default samplerate
 d_frequency(0),
 d_lna_gain(0),
@@ -64,7 +64,7 @@ std::vector<std::string> SoapyFCDPP::getStreamFormats(const int direction, const
 {
     std::vector<std::string> formats;
     formats.push_back("CS16");
-    formats.push_back("CF32");
+    //formats.push_back("CF32");
     return formats;
 }
 
@@ -96,8 +96,8 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
-    d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
-    assert(d_converter_func != nullptr);
+//    d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
+//    assert(d_converter_func != nullptr);
     
     d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
@@ -194,9 +194,12 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                                   std::min<size_t>(d_period_size, numElems));
             if(n_err >= 0) {
                 // read ok, convert and return.
-                d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
+                //d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
+		// PAA: copy raw CS16 samples to output buffer
+		memcpy(buffs[0], &d_buff[0], n_err * 4);
                 return (int) n_err;
             } // error, fallthrough
+	    fprintf(stderr,"=== nErr=%d\n", (int)n_err);
         case SND_PCM_STATE_XRUN:
             err = (int) n_err;
             // try to recover from error.

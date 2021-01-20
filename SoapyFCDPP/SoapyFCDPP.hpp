@@ -7,7 +7,7 @@
 
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Registry.hpp>
-#include <SoapySDR/ConverterRegistry.hpp>
+//#include <SoapySDR/ConverterRegistry.hpp>
 
 #include <cstdint>
 #include <iostream>
@@ -40,7 +40,7 @@ private:
     const std::string d_hid_path;
     const std::string d_alsa_device;
     
-    SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
+//    SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
 
     // hid
     hid_device *d_handle;
