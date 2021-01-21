@@ -20,17 +20,20 @@
 // This is for the funcube dongle pro+
 #define FCDPP_VENDOR_ID     0x04d8
 #define FCDPP_PRODUCT_ID    0xfb31
+// This is the older funcube dongle pro
+#define FCDP_PRODUCT_ID     0xfb56
 
 class SoapyFCDPP : public SoapySDR::Device
 {
     
 private:
+    const bool is_pro_plus;
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
     std::vector<int32_t> d_buff;
 
     // Device properties
-    const double d_sample_rate;
+    double d_sample_rate;
     double d_frequency;
     double d_lna_gain;
     double d_bias_tee;
@@ -42,11 +45,14 @@ private:
     
 //    SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
 
+    // FCD V1 gain mapper
+    uint8_t mapLNAGain(double db);
+
     // hid
     hid_device *d_handle;
     
 public:
-    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device);
+    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus);
     ~SoapyFCDPP();
     
     // Identification API

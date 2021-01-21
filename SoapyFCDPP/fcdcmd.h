@@ -29,6 +29,21 @@ extern "C"
 
 #define FCD_RESET                    255 // Reset to bootloader
 
+// FCD Pro (V1.x) gain commands.. we get to manage gain distribution across the amps
+#define FCD_HID_CMD_SET_IF_GAIN1     117
+#define FCD_HID_CMD_SET_IF_GAIN2     120
+#define FCD_HID_CMD_SET_IF_GAIN3     121
+#define FCD_HID_CMD_SET_IF_GAIN4     123
+#define FCD_HID_CMD_SET_IF_GAIN5     124
+#define FCD_HID_CMD_SET_IF_GAIN6     125
+
+#define FCD_HID_CMD_GET_IF_GAIN1     157
+#define FCD_HID_CMD_GET_IF_GAIN2     160
+#define FCD_HID_CMD_GET_IF_GAIN3     161
+#define FCD_HID_CMD_GET_IF_GAIN4     163
+#define FCD_HID_CMD_GET_IF_GAIN5     164
+#define FCD_HID_CMD_GET_IF_GAIN6     165
+
 typedef enum
 {
 	TRFE_0_4,

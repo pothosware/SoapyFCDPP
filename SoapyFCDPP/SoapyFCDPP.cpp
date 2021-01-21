@@ -8,19 +8,20 @@
 #include <algorithm>
 #include <cmath>
 
-SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device) :
-d_pcm_handle(nullptr),
-d_period_size(48000), // I find that a shorter period doesn't work well on the rbpi3.
-d_sample_rate(192000.), // This is the default samplerate
-d_frequency(0),
-d_lna_gain(0),
-d_bias_tee(false),
-d_mixer_gain(0),
-d_if_gain(0),
-d_trim_ppm(0.0),
-d_hid_path(hid_path),
-d_alsa_device(alsa_device)
-{
+SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus) :
+    is_pro_plus(is_plus),
+    d_pcm_handle(nullptr),
+    d_frequency(0),
+    d_lna_gain(0),
+    d_bias_tee(false),
+    d_mixer_gain(0),
+    d_if_gain(0),
+    d_trim_ppm(0.0),
+    d_hid_path(hid_path),
+    d_alsa_device(alsa_device) {
+
+    d_sample_rate=is_pro_plus?192000.:96000.; // This is the default samplerate
+    d_period_size=d_sample_rate/4; // default to 250ms sample periods to keep context switch rates low
     d_handle = hid_open_path(d_hid_path.c_str());
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
@@ -44,7 +45,7 @@ std::string SoapyFCDPP::getDriverKey() const
 
 std::string SoapyFCDPP::getHardwareKey() const
 {
-    return "FCDPP";
+    return is_pro_plus?"FCDPP":"FCD";
 }
 
 // Channels API
@@ -64,7 +65,7 @@ std::vector<std::string> SoapyFCDPP::getStreamFormats(const int direction, const
 {
     std::vector<std::string> formats;
     formats.push_back("CS16");
-    //formats.push_back("CF32");
+    //TODO:formats.push_back("CF32");
     return formats;
 }
 
@@ -83,6 +84,7 @@ SoapySDR::ArgInfoList SoapyFCDPP::getStreamArgsInfo(const int direction, const s
 
 SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
+    SoapySDR_log(SOAPY_SDR_INFO, "setup stream");
     if (direction != SOAPY_SDR_RX) {
         throw std::runtime_error("setupStream only RX supported");
     }
@@ -96,10 +98,11 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
+    // TODO: replaced with local CS16=>CF32 conversion for soapy 0.6 compat.
 //    d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
 //    assert(d_converter_func != nullptr);
     
-    d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), d_period_size, SND_PCM_STREAM_CAPTURE);
+    d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), (unsigned int)d_sample_rate, d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
     
     return (SoapySDR::Stream *) this;
@@ -160,6 +163,8 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
     int err = 0;
     snd_pcm_sframes_t n_err = 0;
     
+    SoapySDR_log(SOAPY_SDR_TRACE, "read stream");
+
     // This function has to be well defined at all times
     if (d_pcm_handle == nullptr) {
         return 0;
@@ -195,11 +200,11 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             if(n_err >= 0) {
                 // read ok, convert and return.
                 //d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
-		// PAA: copy raw CS16 samples to output buffer
-		memcpy(buffs[0], &d_buff[0], n_err * 4);
+                // PAA: copy raw CS16 samples to output buffer
+                // TODO: local CS16->CF32 conversion if required
+                memcpy(buffs[0], &d_buff[0], n_err * 4);
                 return (int) n_err;
             } // error, fallthrough
-	    fprintf(stderr,"=== nErr=%d\n", (int)n_err);
         case SND_PCM_STATE_XRUN:
             err = (int) n_err;
             // try to recover from error.
@@ -214,15 +219,12 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                 SoapySDR_logf(SOAPY_SDR_ERROR, "readStream error: %s", snd_strerror(err));
                 return SOAPY_SDR_STREAM_ERROR;
             } // this clause always returns
-        case SND_PCM_STATE_DRAINING:
-        case SND_PCM_STATE_PAUSED:
-        case SND_PCM_STATE_SUSPENDED:
-        case SND_PCM_STATE_DISCONNECTED:
+        default:
             SoapySDR_logf(SOAPY_SDR_ERROR,
                           "unknown ALSA state: %s",
                           state);
-            return SOAPY_SDR_STREAM_ERROR;
     }
+    return SOAPY_SDR_STREAM_ERROR;
 }
 
 
@@ -231,39 +233,39 @@ std::vector<std::string> SoapyFCDPP::listAntennas(const int direction, const siz
     SoapySDR_log(SOAPY_SDR_INFO, "listAntennas");
     
     std::vector<std::string> antennas;
-    antennas.push_back("Bias_T_Off");
-    antennas.push_back("Bias_T_On");
+    if (is_pro_plus) {
+        // Only FCD Pro+ has a Bias Tee
+        antennas.push_back("Bias_T_Off");
+        antennas.push_back("Bias_T_On");
+    }
     return antennas;
 }
 
 void SoapyFCDPP::setAntenna(const int direction, const size_t channel, const std::string &name)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "setAntenna");
-    if (name == "Bias_T_Off")
-      {
-	if (d_bias_tee)
-	  {
-	    d_bias_tee = false;
-	    fcdpp_set_bias_tee(d_handle, d_bias_tee);
-	  }
-      }
-    else if (name == "Bias_T_On")
-      {
-	if (!d_bias_tee)
-	  {
-	    d_bias_tee = true;
-	    fcdpp_set_bias_tee(d_handle, d_bias_tee);
-	  }
-      }
-    else {
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "setAntenna: unknown element %s", name.c_str());		 
+    if (is_pro_plus) {
+        // Only FCD Pro+ has a Bias Tee
+        if (name == "Bias_T_Off") {
+            if (d_bias_tee) {
+                d_bias_tee = false;
+                fcdpp_set_bias_tee(d_handle, d_bias_tee);
+            }
+        } else if (name == "Bias_T_On") {
+            if (!d_bias_tee) {
+                d_bias_tee = true;
+                fcdpp_set_bias_tee(d_handle, d_bias_tee);
+            }
+        } else {
+            SoapySDR_logf(SOAPY_SDR_DEBUG, "setAntenna: unknown element %s", name.c_str());         
+        }
     }
 }
 
 std::string SoapyFCDPP::getAntenna(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "getAntenna");
-    return d_bias_tee ? "Bias_T_On" : "Bias_T_Off";
+    return is_pro_plus? (d_bias_tee ? "Bias_T_On" : "Bias_T_Off") : "undef";
 }
 
 bool SoapyFCDPP::hasDCOffsetMode(const int direction, const size_t channel) const
@@ -313,20 +315,39 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
     
     if (name == "LNA" && d_lna_gain != value) {
         d_lna_gain = value;
-        fcdpp_set_lna_gain(d_handle, (value > 0.5));
+        if (is_pro_plus)    // only supports on/off for LNA
+            fcdpp_set_lna_gain(d_handle, (value > 0.5));
+        else
+            fcdpp_set_lna_gain(d_handle, mapLNAGain(value));
 
     } else if (name == "Mixer" && d_mixer_gain != value) {
-        // SoapyDevice seems to only accept gain ranges but on the FCDpp
-        // these are toggles. As such put a threshold at 0.5.
         d_mixer_gain = value;
-        fcdpp_set_mixer_gain(d_handle, (value > 0.5));
+        fcdpp_set_mixer_gain(d_handle, (value > 4.0));  // trivial gain mapper =)
     } else if (name == "IF" && d_if_gain != value){
-        // Same as above
+        // We rely on fcd lib to handle variation between FCD types
         d_if_gain = roundf(value);
-        fcdpp_set_if_gain(d_handle, floor(value));
+        fcdpp_set_if_gain(d_handle, is_pro_plus, floor(value));
     } else {
         SoapySDR_logf(SOAPY_SDR_DEBUG, "setGain: unknown element %s", name.c_str());
     }
+}
+
+uint8_t SoapyFCDPP::mapLNAGain(double db)
+{
+    static const double lnagainvalues[]={-5.0,-2.5,-999,-999,0,2.5,5,7.5,10,12.5,15,17.5,20,25,30};
+    #define N_LNA_GAINS (sizeof(lnagainvalues)/sizeof(double))
+    // find the nearest index to requested gain
+    if (db<=5.0)
+        return 0;
+    if (db>=30.0)
+        return N_LNA_GAINS-1;
+    uint8_t idx=1;
+    while (idx<N_LNA_GAINS-1) {
+        if (lnagainvalues[idx]>db)
+            break;
+        ++idx;
+    }
+    return idx;
 }
 
 double SoapyFCDPP::getGain(const int direction, const size_t channel, const std::string &name) const
@@ -349,11 +370,11 @@ SoapySDR::Range SoapyFCDPP::getGainRange(const int direction, const size_t chann
     SoapySDR_log(SOAPY_SDR_DEBUG, "getGainRange");
     
     if (name == "LNA") {
-        return SoapySDR::Range(0,1,1);
+        return is_pro_plus ? SoapySDR::Range(0,1,1) : SoapySDR::Range(-5.0,30,2.5);
     } else if (name == "Mixer") {
-        return SoapySDR::Range(0,1,1);
+        return SoapySDR::Range(4,12,8);
     } else if (name == "IF"){
-        return SoapySDR::Range(0,59,1);
+        return SoapySDR::Range(3,57,1);
     } else {
         throw std::runtime_error("getGainRange: unknown gain element");
     }
@@ -372,7 +393,7 @@ void SoapyFCDPP::setFrequency(const int direction,
     
     if (name == "RF" && d_frequency != frequency)
     {
-      err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency), d_trim_ppm);
+        err = fcdpp_set_freq_hz(d_handle, uint32_t(frequency), d_trim_ppm);
         if (err > 0) {
             d_frequency = frequency;
         } else {
@@ -420,26 +441,25 @@ SoapySDR::ArgInfoList SoapyFCDPP::getFrequencyArgsInfo(const int direction, cons
 
 bool SoapyFCDPP::hasFrequencyCorrection(const int direction, const size_t channel) const
 {
-  return true;
+    return true;
 }
 
 void SoapyFCDPP::setFrequencyCorrection(const int direction, const size_t channel, const double value)
 {
-  SoapySDR_logf(SOAPY_SDR_DEBUG, "setFreqCorrection %f", value);
-  d_trim_ppm = value;
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "setFreqCorrection %f", value);
+    d_trim_ppm = value;
 
-  if (d_frequency != 0.0)	// don't set correction until tuned initially
-    {
-      int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
-      if (err <= 0) {
-	SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
-      }
+    if (d_frequency != 0.0) {  // don't set correction until tuned initially
+        int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
+        if (err <= 0) {
+            SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
+        }
     }
 }
 
 double SoapyFCDPP::getFrequencyCorrection(const int direction, const size_t channel) const
 {
-  return d_trim_ppm;
+    return d_trim_ppm;
 }
 
 
@@ -518,8 +538,9 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
         SoapySDR::Kwargs soapyInfo;
         SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
         // This is the name that shows up.
-        soapyInfo["device"] = "Funcube Dongle Pro+";
+        soapyInfo["device"] = "Funcube Dongle Pro+ (192k)";
         soapyInfo["hid_path"] = cur_dev->path;
+        soapyInfo["is_plus"] = "true";
         // TODO:
         // * Currently only one dongle will work and I don't know how to associate
         // * HID path with an alsa path. Perhaps this could be an option to the driver.
@@ -529,18 +550,37 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
         results.push_back(soapyInfo);
     }
     hid_free_enumeration(devs);
+    // if we had no luck finding a Pro+, try older Pro model
+    if (results.size()==0) {
+        devs = hid_enumerate(FCDPP_VENDOR_ID, FCDP_PRODUCT_ID);
+        cur_dev = devs;
+        while (cur_dev) {
+            SoapySDR::Kwargs soapyInfo;
+            SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
+            // This is the name that shows up.
+            soapyInfo["device"] = "Funcube Dongle Pro (96k)";
+            soapyInfo["hid_path"] = cur_dev->path;
+            soapyInfo["is_plus"] = "false";
+            soapyInfo["alsa_device"] = "hw:CARD=V10,DEV=0";
+            cur_dev = cur_dev->next;
+            results.push_back(soapyInfo);
+        }
+        hid_free_enumeration(devs);
+    }
     
+    SoapySDR_logf(SOAPY_SDR_TRACE, "findFCDPP=%d", results.size());
     return results;
 }
 
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
-    SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
+//!WTF!    SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
     SoapySDR_log(SOAPY_SDR_TRACE, "makeFCDPP");
     
     std::string hid_path = args.at("hid_path");
     std::string alsa_device = args.at("alsa_device");
-    return (SoapySDR::Device*) new SoapyFCDPP(hid_path, alsa_device);
+    bool is_plus = args.at("is_plus")=="true";
+    return (SoapySDR::Device*) new SoapyFCDPP(hid_path, alsa_device, is_plus);
 }
 
 /* Register this driver */

@@ -14,6 +14,7 @@ extern "C"
 #include <alsa/asoundlib.h>
     
     snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
+                               const unsigned int rate,
                                snd_pcm_uframes_t frames_per_period,
                                snd_pcm_stream_t stream);
     
