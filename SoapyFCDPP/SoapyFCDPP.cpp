@@ -369,12 +369,17 @@ SoapySDR::Range SoapyFCDPP::getGainRange(const int direction, const size_t chann
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "getGainRange");
     
+    // Pro+ gains taken from the comments here: http://www.funcubedongle.com/?page_id=1225
+    // Pro gains from datasheet of E4000
     if (name == "LNA") {
-        return is_pro_plus ? SoapySDR::Range(0,1,1) : SoapySDR::Range(-5.0,30,2.5);
+        // Pro+ LNA is 0/+10dB switchable
+        return is_pro_plus ? SoapySDR::Range(0,10,10) : SoapySDR::Range(-5.0,30,2.5);
     } else if (name == "Mixer") {
-        return SoapySDR::Range(4,12,8);
+        // Pro+ Mixer is 0/+20dB switchable
+        return is_pro_plus ? SoapySDR::Range(0,20,20) : SoapySDR::Range(4,12,8);
     } else if (name == "IF"){
-        return SoapySDR::Range(3,57,1);
+        // Pro+ IF is 0-59dB in 1dB steps
+        return is_pro_plus ? SoapySDR::Range(0,59,1) : SoapySDR::Range(3,57,1);
     } else {
         throw std::runtime_error("getGainRange: unknown gain element");
     }
