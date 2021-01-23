@@ -548,9 +548,33 @@ std::vector<double> SoapyFCDPP::listBandwidths(const int direction, const size_t
 }
 
 // Registry
+std::string findAlsaDevice(const char *hidpath)
+{
+    // Stolen from fcdctl, we locate the audio device for this HID interface by USB bus ID:
+    // https://github.com/phlash/fcdctl/blob/8f9e855db26f531c1e2af0dcd3648e566e7f05b9/main.c#L76
+    int usb1, usb2, n = sscanf(hidpath,"%x:%x", &usb1, &usb2);
+    assert(n==2);
+    for (n=0; n<16; n++) {
+        char aspath[32];
+        sprintf(aspath,"/proc/asound/card%d/usbbus", n);
+        FILE *fp = fopen(aspath,"r");
+        if (fp) {
+            fgets(aspath,sizeof(aspath),fp);
+            fclose(fp);
+            int asu1, asu2;
+            sscanf(aspath,"%d/%d", &asu1, &asu2);
+            if (asu1==usb1 && asu2==usb2) {
+                sprintf(aspath,"hw:%d,0",n);
+                return aspath;
+            }
+        }
+    }
+    return "not found";
+}
+
 SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 {
-    SoapySDR_log(SOAPY_SDR_TRACE, "findFCDPP");
+    SoapySDR_log(SOAPY_SDR_INFO, "findFCDPP");
     
     SoapySDR::KwargsList results;
     
@@ -561,46 +585,39 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     cur_dev = devs;
     while (cur_dev) {
         SoapySDR::Kwargs soapyInfo;
-        SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
         // This is the name that shows up.
         soapyInfo["device"] = "Funcube Dongle Pro+ (192k)";
         soapyInfo["hid_path"] = cur_dev->path;
         soapyInfo["is_plus"] = "true";
-        // TODO:
-        // * Currently only one dongle will work and I don't know how to associate
-        // * HID path with an alsa path. Perhaps this could be an option to the driver.
-        // * Perhaps make sample rate configureable.
-        soapyInfo["alsa_device"] = "hw:CARD=V20,DEV=0";
+        soapyInfo["alsa_device"] = findAlsaDevice(cur_dev->path);
+        SoapySDR_logf(SOAPY_SDR_TRACE, "Found device: %s, %s", cur_dev->path, soapyInfo["alsa_device"].c_str());
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);
     }
     hid_free_enumeration(devs);
-    // if we had no luck finding a Pro+, try older Pro model
-    if (results.size()==0) {
-        devs = hid_enumerate(FCDPP_VENDOR_ID, FCD_PRODUCT_ID);
-        cur_dev = devs;
-        while (cur_dev) {
-            SoapySDR::Kwargs soapyInfo;
-            SoapySDR_logf(SOAPY_SDR_INFO, "Found device: %s", cur_dev->path);
-            // This is the name that shows up.
-            soapyInfo["device"] = "Funcube Dongle Pro (96k)";
-            soapyInfo["hid_path"] = cur_dev->path;
-            soapyInfo["is_plus"] = "false";
-            soapyInfo["alsa_device"] = "hw:CARD=V10,DEV=0";
-            cur_dev = cur_dev->next;
-            results.push_back(soapyInfo);
-        }
-        hid_free_enumeration(devs);
+    // now check for older Pro devices
+    devs = hid_enumerate(FCDPP_VENDOR_ID, FCD_PRODUCT_ID);
+    cur_dev = devs;
+    while (cur_dev) {
+        SoapySDR::Kwargs soapyInfo;
+        // This is the name that shows up.
+        soapyInfo["device"] = "Funcube Dongle Pro (96k)";
+        soapyInfo["hid_path"] = cur_dev->path;
+        soapyInfo["is_plus"] = "false";
+        soapyInfo["alsa_device"] = findAlsaDevice(cur_dev->path);
+        SoapySDR_logf(SOAPY_SDR_TRACE, "Found device: %s, %s", cur_dev->path, soapyInfo["alsa_device"].c_str());
+        cur_dev = cur_dev->next;
+        results.push_back(soapyInfo);
     }
+    hid_free_enumeration(devs);
     
-    SoapySDR_logf(SOAPY_SDR_TRACE, "findFCDPP=%d", results.size());
+    SoapySDR_logf(SOAPY_SDR_INFO, "findFCDPP=%d devices", results.size());
     return results;
 }
 
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
-//!WTF!    SoapySDR_setLogLevel(SOAPY_SDR_DEBUG);
-    SoapySDR_log(SOAPY_SDR_TRACE, "makeFCDPP");
+    SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
     
     std::string hid_path = args.at("hid_path");
     std::string alsa_device = args.at("alsa_device");
