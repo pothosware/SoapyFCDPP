@@ -54,7 +54,7 @@ private:
 #endif
 
     // FCD V1 gain mapper
-    uint8_t mapLNAGain(double db);
+    uint8_t mapLNAGain(double db, double *actual);
 
     // hid
     hid_device *d_handle;

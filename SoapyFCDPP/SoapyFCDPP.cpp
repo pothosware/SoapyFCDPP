@@ -333,37 +333,61 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
 {
     SoapySDR_logf(SOAPY_SDR_INFO, "Setting %s gain: %f", name.c_str(), value);
     
-    if (name == "LNA" && d_lna_gain != value) {
-        d_lna_gain = value;
-        if (is_pro_plus)    // only supports on/off for LNA
+    // @see getGainRanges below for info on Pro+ gain mapping...
+    // in all switchable cases, we choose to switch at mid-point in dB
+    if (name == "LNA") {
+        if (d_lna_gain == value)
+            return;
+        if (is_pro_plus) {
+            d_lna_gain = (value > 5.0) ? 10.0 : 0.0;
             fcdpp_set_lna_gain(d_handle, (value > 0.5));
-        else
-            fcdpp_set_lna_gain(d_handle, mapLNAGain(value));
+        } else {
+            uint8_t idx = mapLNAGain(value, &d_lna_gain);
+            fcdpp_set_lna_gain(d_handle, idx);
+        }
 
-    } else if (name == "Mixer" && d_mixer_gain != value) {
-        d_mixer_gain = value;
-        fcdpp_set_mixer_gain(d_handle, (value > 4.0));  // trivial gain mapper =)
-    } else if (name == "IF" && d_if_gain != value){
+    } else if (name == "Mixer") {
+        if (d_mixer_gain == value)
+            return;
+        if (is_pro_plus) {
+            d_mixer_gain = (value > 10.0) ? 20.0 : 0.0;
+            fcdpp_set_mixer_gain(d_handle, (value > 10.0));
+        } else {
+            d_mixer_gain = (value > 8.0) ? 12.0 : 4.0;
+            fcdpp_set_mixer_gain(d_handle, (value > 8.0));
+        }
+
+    } else if (name == "IF"){
+        if (d_if_gain == value)
+            return;
+        // clamp minimum as caller's ask for values below range minimum..
+        double actual = (is_pro_plus?0.0:3.0);
+        if (value > actual)
+            actual = value;
         // We rely on fcd lib to handle variation between FCD types
-        d_if_gain = roundf(value);
-        fcdpp_set_if_gain(d_handle, is_pro_plus, floor(value));
+        d_if_gain = roundf(actual);
+        fcdpp_set_if_gain(d_handle, is_pro_plus, floor(actual));
+
     } else {
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "setGain: unknown element %s", name.c_str());
+        SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: unknown element '%s'", name.c_str());
     }
 }
 
-uint8_t SoapyFCDPP::mapLNAGain(double db)
+uint8_t SoapyFCDPP::mapLNAGain(double db, double *actual)
 {
     static const double lnagainvalues[]={-5.0,-2.5,-999,-999,0,2.5,5,7.5,10,12.5,15,17.5,20,25,30};
     #define N_LNA_GAINS (sizeof(lnagainvalues)/sizeof(double))
     // find the nearest index to requested gain
-    if (db<=5.0)
+    *actual = lnagainvalues[0];
+    if (db<=*actual)
         return 0;
-    if (db>=30.0)
+    *actual = lnagainvalues[N_LNA_GAINS-1];
+    if (db>=*actual)
         return N_LNA_GAINS-1;
     uint8_t idx=1;
     while (idx<N_LNA_GAINS-1) {
-        if (lnagainvalues[idx]>db)
+        *actual = lnagainvalues[idx];
+        if (*actual>db)
             break;
         ++idx;
     }
@@ -372,17 +396,19 @@ uint8_t SoapyFCDPP::mapLNAGain(double db)
 
 double SoapyFCDPP::getGain(const int direction, const size_t channel, const std::string &name) const
 {
-    SoapySDR_log(SOAPY_SDR_DEBUG, "getGain");
+    double gain = 0.0;
     if (name == "LNA") {
-        return d_lna_gain;
+        gain = d_lna_gain;
     } else if (name == "Mixer") {
-        return d_mixer_gain;
+        gain = d_mixer_gain;
     } else if (name == "IF"){
-        return d_if_gain;
+        gain = d_if_gain;
     } else {
-        SoapySDR_logf(SOAPY_SDR_DEBUG, "getGain: unknown element %s", name.c_str());
-        return 0.;
+        SoapySDR_logf(SOAPY_SDR_ERROR, "getGain: unknown element %s", name.c_str());
+        return gain;
     }
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "getGain %s = %f", name.c_str(), gain);
+    return gain;
 }
 
 SoapySDR::Range SoapyFCDPP::getGainRange(const int direction, const size_t channel, const std::string &name) const
