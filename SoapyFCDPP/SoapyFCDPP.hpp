@@ -7,7 +7,10 @@
 
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Registry.hpp>
-//#include <SoapySDR/ConverterRegistry.hpp>
+#include <SoapySDR/Version.hpp>
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+#include <SoapySDR/ConverterRegistry.hpp>
+#endif
 
 #include <cstdint>
 #include <iostream>
@@ -21,7 +24,7 @@
 #define FCDPP_VENDOR_ID     0x04d8
 #define FCDPP_PRODUCT_ID    0xfb31
 // This is the older funcube dongle pro
-#define FCDP_PRODUCT_ID     0xfb56
+#define FCD_PRODUCT_ID      0xfb56
 
 class SoapyFCDPP : public SoapySDR::Device
 {
@@ -43,7 +46,12 @@ private:
     const std::string d_hid_path;
     const std::string d_alsa_device;
     
-//    SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+    SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
+#else
+    bool is_cf32;
+    void convertCS16toCF32(void *dst, void *src, size_t samples);
+#endif
 
     // FCD V1 gain mapper
     uint8_t mapLNAGain(double db);

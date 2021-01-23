@@ -65,7 +65,7 @@ std::vector<std::string> SoapyFCDPP::getStreamFormats(const int direction, const
 {
     std::vector<std::string> formats;
     formats.push_back("CS16");
-    //TODO:formats.push_back("CF32");
+    formats.push_back("CF32");
     return formats;
 }
 
@@ -98,9 +98,12 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
-    // TODO: replaced with local CS16=>CF32 conversion for soapy 0.6 compat.
-//    d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
-//    assert(d_converter_func != nullptr);
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+    d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
+    assert(d_converter_func != nullptr);
+#else
+    is_cf32 = (format == "CF32");
+#endif
     
     d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), (unsigned int)d_sample_rate, d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
@@ -153,6 +156,19 @@ int SoapyFCDPP::deactivateStream(SoapySDR::Stream *stream, const int flags, cons
     return 0;
 }
 
+void SoapyFCDPP::convertCS16toCF32(void *dst, void *src, size_t samples)
+{
+    int16_t *cs16 = (int16_t *)src;
+    float *cf32   = (float *)dst;
+    // convert complex samples in range -INT16_MAX>INT16_MAX to -1.0>1.0
+    for (size_t idx=0; idx<samples; idx++) {
+        int16_t si = cs16[2*idx];
+        int16_t sq = cs16[2*idx+1];
+        cf32[2*idx]   = (float)si/(float)INT16_MAX;
+        cf32[2*idx+1] = (float)sq/(float)INT16_MAX;
+    }
+}
+
 int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                            void * const *buffs,
                            const size_t numElems,
@@ -199,10 +215,14 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                                   std::min<size_t>(d_period_size, numElems));
             if(n_err >= 0) {
                 // read ok, convert and return.
-                //d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
-                // PAA: copy raw CS16 samples to output buffer
-                // TODO: local CS16->CF32 conversion if required
-                memcpy(buffs[0], &d_buff[0], n_err * 4);
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+                d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
+#else
+                if (is_cf32)
+                    convertCS16toCF32(buffs[0], &d_buff[0], n_err);
+                else
+                    memcpy(buffs[0], &d_buff[0], n_err * 4);
+#endif
                 return (int) n_err;
             } // error, fallthrough
         case SND_PCM_STATE_XRUN:
@@ -557,7 +577,7 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     hid_free_enumeration(devs);
     // if we had no luck finding a Pro+, try older Pro model
     if (results.size()==0) {
-        devs = hid_enumerate(FCDPP_VENDOR_ID, FCDP_PRODUCT_ID);
+        devs = hid_enumerate(FCDPP_VENDOR_ID, FCD_PRODUCT_ID);
         cur_dev = devs;
         while (cur_dev) {
             SoapySDR::Kwargs soapyInfo;
