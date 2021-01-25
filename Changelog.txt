@@ -1,3 +1,10 @@
+Release 0.2.0 (pending)
+==========================
+
+- support for building SoapyFCDPP on SoapySDR v0.6
+- support for FCD Pro (V1.x) dongles
+- detection of valid Alsa devices for multiple attached FCDs
+
 Release 0.1.1 (2019-01-26)
 ==========================
 
