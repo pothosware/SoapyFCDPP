@@ -6,6 +6,7 @@
 
 /* Try to get an ALSA capture handle */
 snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
+                           const unsigned int rate,
                            snd_pcm_uframes_t frames_per_period,
                            snd_pcm_stream_t stream) {
     snd_pcm_t *pcm_handle = NULL;
@@ -13,9 +14,8 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
     snd_pcm_hw_params_t *hwparams;
     //snd_pcm_sw_params_t *swparams;
     
-    const unsigned int rate = 192000;      // Fixed sample rate of VFZSDR.
     const unsigned int periods = 4;       // Number of periods in ALSA ringbuffer.
-    const unsigned int channels = 2;
+    const unsigned int channels = 2;      // Always 2 channel IQ samples
     
     snd_pcm_hw_params_alloca(&hwparams);
     // snd_pcm_sw_params_alloca(&swparams);

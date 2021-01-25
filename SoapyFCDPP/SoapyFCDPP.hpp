@@ -7,7 +7,10 @@
 
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Registry.hpp>
+#include <SoapySDR/Version.hpp>
+#if SOAPY_SDR_API_VERSION >= 0x00070000
 #include <SoapySDR/ConverterRegistry.hpp>
+#endif
 
 #include <cstdint>
 #include <iostream>
@@ -20,17 +23,20 @@
 // This is for the funcube dongle pro+
 #define FCDPP_VENDOR_ID     0x04d8
 #define FCDPP_PRODUCT_ID    0xfb31
+// This is the older funcube dongle pro
+#define FCD_PRODUCT_ID      0xfb56
 
 class SoapyFCDPP : public SoapySDR::Device
 {
     
 private:
+    const bool is_pro_plus;
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
     std::vector<int32_t> d_buff;
 
     // Device properties
-    const double d_sample_rate;
+    double d_sample_rate;
     double d_frequency;
     double d_lna_gain;
     double d_bias_tee;
@@ -40,13 +46,21 @@ private:
     const std::string d_hid_path;
     const std::string d_alsa_device;
     
+#if SOAPY_SDR_API_VERSION >= 0x00070000
     SoapySDR::ConverterRegistry::ConverterFunction d_converter_func;
+#else
+    bool is_cf32;
+    void convertCS16toCF32(void *dst, void *src, size_t samples);
+#endif
+
+    // FCD V1 gain mapper
+    uint8_t mapLNAGain(double db, double *actual);
 
     // hid
     hid_device *d_handle;
     
 public:
-    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device);
+    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus);
     ~SoapyFCDPP();
     
     // Identification API

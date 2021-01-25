@@ -25,8 +25,8 @@ extern "C"
     int fcdpp_set_rf_filter(hid_device *device, tuner_rf_filter_t filter);
     tuner_if_filter_t fcdpp_get_if_filter(hid_device *device);
     int fcdpp_set_if_filter(hid_device *device);
-    int fcdpp_get_if_gain(hid_device *device);
-    int fcdpp_set_if_gain(hid_device *device, uint8_t gain);
+    int fcdpp_get_if_gain(hid_device *device, uint8_t is_plus);
+    int fcdpp_set_if_gain(hid_device *device, uint8_t is_plus, uint8_t gain);
     int fcdpp_get_bias_tee(hid_device *device);
     int fcdpp_set_bias_tee(hid_device *device, uint8_t tee);
     int fcdpp_get_mixer_gain(hid_device *device);
