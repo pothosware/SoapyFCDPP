@@ -231,7 +231,7 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             if(snd_pcm_recover(d_pcm_handle, err, 0) == 0) {
                 // Recover ok
                 SoapySDR_logf(SOAPY_SDR_ERROR,
-                              "readStream recoverd from %s",
+                              "readStream recovered from %s",
                               snd_strerror(err));
                 return SOAPY_SDR_OVERFLOW;
             } else {
@@ -438,7 +438,7 @@ void SoapyFCDPP::setFrequency(const int direction,
                               const double frequency,
                               const SoapySDR::Kwargs &args)
 {
-    SoapySDR_log(SOAPY_SDR_DEBUG, "setFrequency");
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "setFrequency: %f", frequency);
     
     int err = 1;
     
@@ -600,7 +600,7 @@ std::string findAlsaDevice(const char *hidpath)
 
 SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 {
-    SoapySDR_log(SOAPY_SDR_INFO, "findFCDPP");
+    SoapySDR_log(SOAPY_SDR_TRACE, "findFCDPP");
     
     SoapySDR::KwargsList results;
     
@@ -637,7 +637,7 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
     }
     hid_free_enumeration(devs);
     
-    SoapySDR_logf(SOAPY_SDR_INFO, "findFCDPP=%d devices", results.size());
+    SoapySDR_logf(SOAPY_SDR_TRACE, "findFCDPP=%d devices", results.size());
     return results;
 }
 
