@@ -156,6 +156,8 @@ int SoapyFCDPP::deactivateStream(SoapySDR::Stream *stream, const int flags, cons
     return 0;
 }
 
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+#else
 void SoapyFCDPP::convertCS16toCF32(void *dst, void *src, size_t samples)
 {
     int16_t *cs16 = (int16_t *)src;
@@ -168,6 +170,7 @@ void SoapyFCDPP::convertCS16toCF32(void *dst, void *src, size_t samples)
         cf32[2*idx+1] = (float)sq/(float)INT16_MAX;
     }
 }
+#endif
 
 int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                            void * const *buffs,
