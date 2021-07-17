@@ -33,7 +33,11 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
     }
     
     /* Interleaved access. (IQ interleaved). */
+#ifdef FCDPP_USE_MMAP
+    if (snd_pcm_hw_params_set_access(pcm_handle, hwparams, SND_PCM_ACCESS_MMAP_INTERLEAVED) < 0) {
+#else
     if (snd_pcm_hw_params_set_access(pcm_handle, hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
+#endif
         fprintf(stderr, "Error setting access.\n");
         exit(EXIT_FAILURE);
     }
