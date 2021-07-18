@@ -212,7 +212,6 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000.f)) == 0)
                 return SOAPY_SDR_TIMEOUT;
             
-#ifdef FCDPP_USE_MMAP
             // ensure there is some data available
             n_err = snd_pcm_avail_update(d_pcm_handle);
             if (n_err > 0) {
@@ -221,7 +220,6 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
                 const snd_pcm_channel_area_t *area;
                 n_err = snd_pcm_mmap_begin(d_pcm_handle, &area, &offset, &frames);
                 if (n_err >= 0) {
-                    // d_converter_func / convertCS16toCF32 / memcpy directly from mmap buffer =)
 #if SOAPY_SDR_API_VERSION >= 0x00070000
                     d_converter_func(((char *)area->addr)+(offset*4), buffs[0], frames, 1.0);
 #else
@@ -237,24 +235,6 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             if (n_err >= 0)
                 return (int) n_err;
             // error, fallthrough
-#else	// FCDPP_USE_MMAP
-            // read but no more than one ALSA period. Less will probably be requested.
-            n_err = snd_pcm_readi(d_pcm_handle,
-                                  &d_buff[0],
-                                  std::min<size_t>(d_period_size, numElems));
-            if(n_err >= 0) {
-                // read ok, convert and return.
-#if SOAPY_SDR_API_VERSION >= 0x00070000
-                d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
-#else
-                if (is_cf32)
-                    convertCS16toCF32(buffs[0], &d_buff[0], n_err);
-                else
-                    memcpy(buffs[0], &d_buff[0], n_err * 4);
-#endif
-                return (int) n_err;
-            } // error, fallthrough
-#endif // FCDPP_USE_MMAP
         case SND_PCM_STATE_XRUN:
             err = (int) n_err;
             // try to recover from error.
