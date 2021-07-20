@@ -7,6 +7,7 @@
 #include <SoapySDR/Logger.hpp>
 #include <algorithm>
 #include <cmath>
+#include <time.h>
 
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus) :
     is_pro_plus(is_plus),
@@ -28,6 +29,8 @@ SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_devi
     }
     // Sample buffer x 2 because complex data.
     d_buff.resize(2 * d_period_size);
+    // No mmap buffer (yet)
+    d_mmap_valid = false;
 }
 
 SoapyFCDPP::~SoapyFCDPP()
@@ -98,6 +101,7 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
+    d_out_format = format;
 #if SOAPY_SDR_API_VERSION >= 0x00070000
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
     assert(d_converter_func != nullptr);
@@ -251,13 +255,101 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             } // this clause always returns
         default:
             SoapySDR_logf(SOAPY_SDR_ERROR,
-                          "unknown ALSA state: %s",
+                          "unknown ALSA state: %d",
                           state);
     }
     return SOAPY_SDR_STREAM_ERROR;
 }
 
+// Direct buffer API
+size_t SoapyFCDPP::getNumDirectAccessBuffers(SoapySDR::Stream *stream)
+{
+    // current implementation directly maps the single ALSA buffer, provided we are in CS16
+    SoapySDR_log(SOAPY_SDR_TRACE, "getNumDirectAccessBuffers");
+    if (d_out_format!="CS16")
+        return 0;
+    return 1;
+}
 
+int SoapyFCDPP::acquireReadBuffer(SoapySDR::Stream *stream,
+    size_t &handle,
+    const void **buffs,
+    int &flags,
+    long long &timeNs,
+    const long timeoutUs)
+{
+    // default alsa error condition (overrun), can change while processing
+    int err = -EPIPE;
+    SoapySDR_logf(SOAPY_SDR_TRACE, "acquireReadBuffer (timeoutUs=%ld)", timeoutUs);
+    // dumb check
+    if (d_mmap_valid) {
+        SoapySDR_log(SOAPY_SDR_ERROR, "direct buffer already mapped");
+        return SOAPY_SDR_STREAM_ERROR;
+    }
+retry:
+    // check we are in a valid state (prepared, running or xrun)
+    snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
+    switch (state) {
+        case SND_PCM_STATE_PREPARED:
+            SoapySDR_log(SOAPY_SDR_TRACE, "..acquireReadBuffer:starting");
+            err = snd_pcm_start(d_pcm_handle);
+            goto retry;
+        case SND_PCM_STATE_RUNNING:
+            // wait for any data, or timeout
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:waiting(%ld)", timeoutUs);
+            if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000.f)) == 0)
+                return SOAPY_SDR_TIMEOUT;
+            // get available data size
+            err = snd_pcm_avail_update(d_pcm_handle);
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:avail=%d", err);
+            if (err<0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_avail_update error: %s", snd_strerror(err));
+                goto retry;
+            }
+            // map that buffer!
+            const snd_pcm_channel_area_t *area;
+            d_mmap_frames = err;
+            err = snd_pcm_mmap_begin(d_pcm_handle, &area, &d_mmap_offset, &d_mmap_frames);
+            if (err<0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_mmap_begin error: %s", snd_strerror(err));
+                goto retry;
+            }
+            buffs[0] = ((char *)area->addr) + d_mmap_offset;
+            // ensure API contract for handle (unused by us)
+            handle = 0;
+            // record mmap is valid
+            d_mmap_valid = true;
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:returning(%ld)", d_mmap_frames);
+            return d_mmap_frames;
+        case SND_PCM_STATE_XRUN:
+            // attempt recovery
+            err = snd_pcm_recover(d_pcm_handle, err, 0);
+            if (err!=0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_recover failed: %s", snd_strerror(err));
+                break;
+            }
+            // inform caller of the (non-fatal) overflow
+            return SOAPY_SDR_OVERFLOW;
+        default:
+            // unexpected state
+            SoapySDR_logf(SOAPY_SDR_ERROR, "unexpected ALSA state: %d", state);
+            break;
+    }
+    return SOAPY_SDR_STREAM_ERROR;
+}
+void SoapyFCDPP::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
+{
+    // check mmap is valid before attempting unmap
+    SoapySDR_log(SOAPY_SDR_TRACE, "releaseReadBuffer");
+    if (d_mmap_valid) {
+        snd_pcm_mmap_commit(d_pcm_handle, d_mmap_offset, d_mmap_frames);
+        d_mmap_valid = false;
+    } else {
+        SoapySDR_log(SOAPY_SDR_WARNING, "attempt to release an unmapped read buffer");
+    }
+}
+
+// Antenna API
 std::vector<std::string> SoapyFCDPP::listAntennas(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "listAntennas");
@@ -654,7 +746,10 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
-    
+
+    // check we have a valid argument set (app could be forcing make without a device available)
+    if (args.find("hid_path")==args.end() || args.find("alsa_device")==args.end() || args.find("is_plus")==args.end())
+        return nullptr;
     std::string hid_path = args.at("hid_path");
     std::string alsa_device = args.at("alsa_device");
     bool is_plus = args.at("is_plus")=="true";

@@ -45,3 +45,6 @@ SOAPY_SDR_MODULE_UTIL(
         SoapyFCDPP/fcd.c
     LIBRARIES ${HIDAPI_LIBRARY} ${ALSA_LIBRARIES}
 )
+
+add_executable(fcddirect fcddirect.cpp)
+target_link_libraries(fcddirect SoapySDR)
