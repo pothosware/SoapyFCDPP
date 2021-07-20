@@ -24,6 +24,7 @@ int main(int argc, char **argv)
     auto stream = device->setupStream(SOAPY_SDR_RX, fmt);
     const size_t period = device->getStreamMTU(stream);
     const size_t rate = device->getSampleRate(SOAPY_SDR_RX, 0);
+    fprintf(stderr, "device period=%d rate=%d\n", period, rate);
     // check direct buffers are available
     if (device->getNumDirectAccessBuffers(stream)!=1)
         return 2;
@@ -43,8 +44,9 @@ int main(int argc, char **argv)
         const void *buf;
         int flg;
         long long timeNs;
+	long long timeout = (long long)period*1000000L*2L/(long long)rate;
         // timeout calcualted as twice expected MTU period in usecs
-        int rv = device->acquireReadBuffer(stream, handle, &buf, flg, timeNs, period*1000000*2/rate);
+        int rv = device->acquireReadBuffer(stream, handle, &buf, flg, timeNs, (long)timeout);
         if (rv>0) {
             // process the buffer (we simply emit to stdout)
             fwrite(buf, 4, rv, stdout);
