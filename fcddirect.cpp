@@ -12,8 +12,11 @@ void trap(int sig)
 int main(int argc, char **argv)
 {
     // find our device
+    char *config = "driver=fcdpp";
+    if (argc>1)
+        config = argv[1];
     SoapySDR::loadModules();
-    auto device = SoapySDR::Device::make("driver=fcdpp");
+    auto device = SoapySDR::Device::make(config);
     if (!device)
         return 1;
     // get a native stream
