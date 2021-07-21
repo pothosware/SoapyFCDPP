@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cmath>
 
-SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus) :
+SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus, const uint32_t override_period) :
     is_pro_plus(is_plus),
     d_pcm_handle(nullptr),
     d_frequency(0),
@@ -20,8 +20,9 @@ SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_devi
     d_hid_path(hid_path),
     d_alsa_device(alsa_device) {
 
+    SoapySDR_logf(SOAPY_SDR_DEBUG, "SoapyFCDPP('%s','%s',%d,%u)", hid_path.c_str(), alsa_device.c_str(), is_plus, override_period);
     d_sample_rate=is_pro_plus?192000.:96000.; // This is the default samplerate
-    d_period_size=d_sample_rate/4; // default to 250ms sample periods to keep context switch rates low
+    d_period_size=(override_period>0) ? override_period : d_sample_rate/4; // default to 250ms sample periods to keep context switch rates low
     d_handle = hid_open_path(d_hid_path.c_str());
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
@@ -619,6 +620,10 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
         soapyInfo["hid_path"] = cur_dev->path;
         soapyInfo["is_plus"] = "true";
         soapyInfo["alsa_device"] = findAlsaDevice(cur_dev->path);
+        if (args.find("period")!=args.end())
+            soapyInfo["period"]=args.at("period");
+        else
+            soapyInfo["period"]="0";
         SoapySDR_logf(SOAPY_SDR_TRACE, "Found device: %s, %s", cur_dev->path, soapyInfo["alsa_device"].c_str());
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);
@@ -634,6 +639,10 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
         soapyInfo["hid_path"] = cur_dev->path;
         soapyInfo["is_plus"] = "false";
         soapyInfo["alsa_device"] = findAlsaDevice(cur_dev->path);
+        if (args.find("period")!=args.end())
+            soapyInfo["period"]=args.at("period");
+        else
+            soapyInfo["period"]="0";
         SoapySDR_logf(SOAPY_SDR_TRACE, "Found device: %s, %s", cur_dev->path, soapyInfo["alsa_device"].c_str());
         cur_dev = cur_dev->next;
         results.push_back(soapyInfo);
@@ -651,7 +660,9 @@ SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
     std::string hid_path = args.at("hid_path");
     std::string alsa_device = args.at("alsa_device");
     bool is_plus = args.at("is_plus")=="true";
-    return (SoapySDR::Device*) new SoapyFCDPP(hid_path, alsa_device, is_plus);
+    uint32_t period = 0;
+    sscanf(args.at("period").c_str(), "%u", &period);
+    return (SoapySDR::Device*) new SoapyFCDPP(hid_path, alsa_device, is_plus, period);
 }
 
 /* Register this driver */

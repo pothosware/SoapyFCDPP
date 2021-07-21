@@ -60,7 +60,7 @@ private:
     hid_device *d_handle;
     
 public:
-    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus);
+    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus, const uint32_t overide_period);
     ~SoapyFCDPP();
     
     // Identification API
