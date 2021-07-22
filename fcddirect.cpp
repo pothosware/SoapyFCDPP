@@ -12,7 +12,7 @@ void trap(int sig)
 int main(int argc, char **argv)
 {
     // find our device
-    char *config = "driver=fcdpp";
+    const char *config = "driver=fcdpp";
     if (argc>1)
         config = argv[1];
     SoapySDR::loadModules();
