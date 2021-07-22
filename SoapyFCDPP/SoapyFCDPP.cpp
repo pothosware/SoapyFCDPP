@@ -11,6 +11,7 @@
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus, const uint32_t override_period) :
     is_pro_plus(is_plus),
     d_pcm_handle(nullptr),
+    d_running_size(0),
     d_frequency(0),
     d_lna_gain(0),
     d_bias_tee(false),
@@ -27,8 +28,6 @@ SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_devi
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
     }
-    // Sample buffer x 2 because complex data.
-    d_buff.resize(2 * d_period_size);
 }
 
 SoapyFCDPP::~SoapyFCDPP()
@@ -86,6 +85,9 @@ SoapySDR::ArgInfoList SoapyFCDPP::getStreamArgsInfo(const int direction, const s
 SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string &format, const std::vector<size_t> &channels, const SoapySDR::Kwargs &args)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "setup stream");
+    if (d_pcm_handle!=nullptr) {
+        throw std::runtime_error("setupStream only one stream at a time");
+    }
     if (direction != SOAPY_SDR_RX) {
         throw std::runtime_error("setupStream only RX supported");
     }
@@ -109,6 +111,10 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     d_pcm_handle = alsa_pcm_handle(d_alsa_device.c_str(), (unsigned int)d_sample_rate, d_period_size, SND_PCM_STREAM_CAPTURE);
     assert(d_pcm_handle != nullptr);
     
+    // Save ALSA period size & adjust sample buffer (x 2 because complex data).
+    d_running_size = d_period_size;
+    d_buff.resize(2 * d_running_size);
+
     return (SoapySDR::Stream *) this;
 }
 
@@ -216,7 +222,9 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             // read but no more than one ALSA period. Less will probably be requested.
             n_err = snd_pcm_readi(d_pcm_handle,
                                   &d_buff[0],
-                                  std::min<size_t>(d_period_size, numElems));
+                                  std::min<size_t>(d_running_size, numElems));
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
             if(n_err >= 0) {
                 // read ok, convert and return.
 #if SOAPY_SDR_API_VERSION >= 0x00070000
@@ -229,6 +237,7 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
 #endif
                 return (int) n_err;
             } // error, fallthrough
+#pragma GCC diagnostic pop
         case SND_PCM_STATE_XRUN:
             err = (int) n_err;
             // try to recover from error.
@@ -555,18 +564,39 @@ SoapySDR::ArgInfoList SoapyFCDPP::getSettingInfo(void) const
     SoapySDR::ArgInfoList settings;
     
     SoapySDR_log(SOAPY_SDR_DEBUG, "getSettingInfo");
-    
+
+    SoapySDR::ArgInfo setting;
+    setting.key = "period";
+    setting.value = "0";
+    setting.type = SoapySDR::ArgInfo::Type::INT;
+    // Empirical testing shows ALSA supports periods in this range...
+    setting.range = SoapySDR::Range(d_sample_rate/1000, d_sample_rate/2, d_sample_rate/100);
+    settings.push_back(setting);
+
     return settings;
 }
 
 void SoapyFCDPP::writeSetting(const std::string &key, const std::string &value)
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "writeSetting");
+    if (d_pcm_handle!=nullptr)
+        SoapySDR_log(SOAPY_SDR_WARNING, "writeSetting, will not affect currently open stream");
+    if ("period"==key) {
+        uint32_t period;
+        sscanf(value.c_str(), "%u", &period);
+        if (period<d_sample_rate/1000 || period>d_sample_rate/2) {
+            SoapySDR_logf(SOAPY_SDR_ERROR, "writeSetting: unsupported period value (%u)", period);
+            return;
+        }
+        d_period_size = period;
+    }
 }
 
 std::string SoapyFCDPP::readSetting(const std::string &key) const
 {
     SoapySDR_log(SOAPY_SDR_DEBUG, "readSetting");
+    if ("period"==key)
+        return std::to_string(d_period_size);
     return "empty";
 }
 

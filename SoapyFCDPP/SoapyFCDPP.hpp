@@ -33,6 +33,7 @@ private:
     const bool is_pro_plus;
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
+    uint32_t d_running_size;
     std::vector<int32_t> d_buff;
 
     // Device properties
