@@ -33,6 +33,7 @@ private:
     const bool is_pro_plus;
     snd_pcm_t* d_pcm_handle;
     uint32_t d_period_size;
+    uint32_t d_running_size;
     std::vector<int32_t> d_buff;
 
     // Device properties
@@ -60,7 +61,7 @@ private:
     hid_device *d_handle;
     
 public:
-    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus);
+    SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus, const uint32_t overide_period);
     ~SoapyFCDPP();
     
     // Identification API
