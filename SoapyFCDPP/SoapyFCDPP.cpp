@@ -199,6 +199,11 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
     if (d_pcm_handle == nullptr) {
         return 0;
     }
+    // do not mix read with mmap =)
+    if (d_mmap_valid) {
+        SoapySDR_log(SOAPY_SDR_WARNING, "readStream called with direct buffer mapped");
+        return 0;
+    }
     
     snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
     switch (state) {
