@@ -127,6 +127,7 @@ void SoapyFCDPP::closeStream(SoapySDR::Stream *stream)
     if (d_pcm_handle != nullptr) {
         snd_pcm_drop(d_pcm_handle);
         snd_pcm_close(d_pcm_handle);
+        d_pcm_handle = nullptr;
     }
 }
 
