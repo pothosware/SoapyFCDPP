@@ -330,7 +330,7 @@ retry:
                 SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_mmap_begin error: %s", snd_strerror(err));
                 goto retry;
             }
-            buffs[0] = ((char *)area->addr) + d_mmap_offset;
+            buffs[0] = ((char *)area->addr) + d_mmap_offset * 4;
             // ensure API contract for handle (unused by us)
             handle = 0;
             // record mmap is valid
