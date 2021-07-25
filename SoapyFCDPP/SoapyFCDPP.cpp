@@ -7,11 +7,13 @@
 #include <SoapySDR/Logger.hpp>
 #include <algorithm>
 #include <cmath>
+#include <time.h>
 
 SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_device, const bool is_plus, const uint32_t override_period) :
     is_pro_plus(is_plus),
     d_pcm_handle(nullptr),
     d_running_size(0),
+    d_mmap_valid(false),
     d_frequency(0),
     d_lna_gain(0),
     d_bias_tee(false),
@@ -101,6 +103,7 @@ SoapySDR::Stream *SoapyFCDPP::setupStream(const int direction, const std::string
     SoapySDR_logf(SOAPY_SDR_DEBUG, "Wants format %s", format.c_str());
     
     // Format converter function
+    d_out_format = format;
 #if SOAPY_SDR_API_VERSION >= 0x00070000
     d_converter_func = SoapySDR::ConverterRegistry::getFunction("CS16", format);
     assert(d_converter_func != nullptr);
@@ -124,6 +127,7 @@ void SoapyFCDPP::closeStream(SoapySDR::Stream *stream)
     if (d_pcm_handle != nullptr) {
         snd_pcm_drop(d_pcm_handle);
         snd_pcm_close(d_pcm_handle);
+        d_pcm_handle = nullptr;
     }
 }
 
@@ -195,6 +199,11 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
     if (d_pcm_handle == nullptr) {
         return 0;
     }
+    // do not mix read with mmap =)
+    if (d_mmap_valid) {
+        SoapySDR_log(SOAPY_SDR_WARNING, "readStream called with direct buffer mapped");
+        return 0;
+    }
     
     snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
     switch (state) {
@@ -219,24 +228,32 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000.f)) == 0)
                 return SOAPY_SDR_TIMEOUT;
             
-            // read but no more than one ALSA period. Less will probably be requested.
-            n_err = snd_pcm_readi(d_pcm_handle,
-                                  &d_buff[0],
-                                  std::min<size_t>(d_running_size, numElems));
+            // ensure there is some data available
+            n_err = snd_pcm_avail_update(d_pcm_handle);
+            if (n_err > 0) {
+                // map up to one alsa period of data
+                snd_pcm_uframes_t offset, frames = std::min<snd_pcm_uframes_t>(std::min<size_t>(d_running_size, numElems), n_err);
+                const snd_pcm_channel_area_t *area;
+                n_err = snd_pcm_mmap_begin(d_pcm_handle, &area, &offset, &frames);
+                if(n_err >= 0) {
+                    // map ok, convert and return.
+#if SOAPY_SDR_API_VERSION >= 0x00070000
+                    d_converter_func(((char *)area->addr)+(offset*4), buffs[0], frames, 1.0);
+#else
+                    if (is_cf32)
+                        convertCS16toCF32(buffs[0], ((char *)area->addr)+(offset*4), frames);
+                    else
+                        memcpy(buffs[0], ((char *)area->addr)+(offset*4), frames*4);
+#endif
+                    snd_pcm_mmap_commit(d_pcm_handle, offset, frames);
+                    n_err = (int) frames;
+                }
+            }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
-            if(n_err >= 0) {
-                // read ok, convert and return.
-#if SOAPY_SDR_API_VERSION >= 0x00070000
-                d_converter_func(&d_buff[0], buffs[0], n_err, 1.0);
-#else
-                if (is_cf32)
-                    convertCS16toCF32(buffs[0], &d_buff[0], n_err);
-                else
-                    memcpy(buffs[0], &d_buff[0], n_err * 4);
-#endif
+            if (n_err >= 0)
                 return (int) n_err;
-            } // error, fallthrough
+            // error, fallthrough
 #pragma GCC diagnostic pop
         case SND_PCM_STATE_XRUN:
             err = (int) n_err;
@@ -254,13 +271,101 @@ int SoapyFCDPP::readStream(SoapySDR::Stream *stream,
             } // this clause always returns
         default:
             SoapySDR_logf(SOAPY_SDR_ERROR,
-                          "unknown ALSA state: %s",
+                          "unknown ALSA state: %d",
                           state);
     }
     return SOAPY_SDR_STREAM_ERROR;
 }
 
+// Direct buffer API
+size_t SoapyFCDPP::getNumDirectAccessBuffers(SoapySDR::Stream *stream)
+{
+    // current implementation directly maps the single ALSA buffer, provided we are in CS16
+    SoapySDR_log(SOAPY_SDR_TRACE, "getNumDirectAccessBuffers");
+    if (d_out_format!="CS16")
+        return 0;
+    return 1;
+}
 
+int SoapyFCDPP::acquireReadBuffer(SoapySDR::Stream *stream,
+    size_t &handle,
+    const void **buffs,
+    int &flags,
+    long long &timeNs,
+    const long timeoutUs)
+{
+    // default alsa error condition (overrun), can change while processing
+    int err = -EPIPE;
+    SoapySDR_logf(SOAPY_SDR_TRACE, "acquireReadBuffer (timeoutUs=%ld)", timeoutUs);
+    // dumb check
+    if (d_mmap_valid) {
+        SoapySDR_log(SOAPY_SDR_ERROR, "direct buffer already mapped");
+        return SOAPY_SDR_STREAM_ERROR;
+    }
+retry:
+    // check we are in a valid state (prepared, running or xrun)
+    snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
+    switch (state) {
+        case SND_PCM_STATE_PREPARED:
+            SoapySDR_log(SOAPY_SDR_TRACE, "..acquireReadBuffer:starting");
+            err = snd_pcm_start(d_pcm_handle);
+            goto retry;
+        case SND_PCM_STATE_RUNNING:
+            // wait for any data, or timeout
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:waiting(%ld)", timeoutUs);
+            if(snd_pcm_wait(d_pcm_handle, int(timeoutUs / 1000.f)) == 0)
+                return SOAPY_SDR_TIMEOUT;
+            // get available data size
+            err = snd_pcm_avail_update(d_pcm_handle);
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:avail=%d", err);
+            if (err<0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_avail_update error: %s", snd_strerror(err));
+                goto retry;
+            }
+            // map that buffer!
+            const snd_pcm_channel_area_t *area;
+            d_mmap_frames = err;
+            err = snd_pcm_mmap_begin(d_pcm_handle, &area, &d_mmap_offset, &d_mmap_frames);
+            if (err<0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_mmap_begin error: %s", snd_strerror(err));
+                goto retry;
+            }
+            buffs[0] = ((char *)area->addr) + d_mmap_offset;
+            // ensure API contract for handle (unused by us)
+            handle = 0;
+            // record mmap is valid
+            d_mmap_valid = true;
+            SoapySDR_logf(SOAPY_SDR_TRACE, "..acquireReadBuffer:returning(%ld)", d_mmap_frames);
+            return d_mmap_frames;
+        case SND_PCM_STATE_XRUN:
+            // attempt recovery
+            err = snd_pcm_recover(d_pcm_handle, err, 0);
+            if (err!=0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_recover failed: %s", snd_strerror(err));
+                break;
+            }
+            // inform caller of the (non-fatal) overflow
+            return SOAPY_SDR_OVERFLOW;
+        default:
+            // unexpected state
+            SoapySDR_logf(SOAPY_SDR_ERROR, "unexpected ALSA state: %d", state);
+            break;
+    }
+    return SOAPY_SDR_STREAM_ERROR;
+}
+void SoapyFCDPP::releaseReadBuffer(SoapySDR::Stream *stream, const size_t handle)
+{
+    // check mmap is valid before attempting unmap
+    SoapySDR_log(SOAPY_SDR_TRACE, "releaseReadBuffer");
+    if (d_mmap_valid) {
+        snd_pcm_mmap_commit(d_pcm_handle, d_mmap_offset, d_mmap_frames);
+        d_mmap_valid = false;
+    } else {
+        SoapySDR_log(SOAPY_SDR_WARNING, "attempt to release an unmapped read buffer");
+    }
+}
+
+// Antenna API
 std::vector<std::string> SoapyFCDPP::listAntennas(const int direction, const size_t channel) const
 {
     SoapySDR_log(SOAPY_SDR_INFO, "listAntennas");
@@ -686,7 +791,10 @@ SoapySDR::KwargsList findFCDPP(const SoapySDR::Kwargs &args)
 SoapySDR::Device *makeFCDPP(const SoapySDR::Kwargs &args)
 {
     SoapySDR_log(SOAPY_SDR_INFO, "makeFCDPP");
-    
+
+    // check we have a valid argument set (app could be forcing make without a device available)
+    if (args.find("hid_path")==args.end() || args.find("alsa_device")==args.end() || args.find("is_plus")==args.end())
+        return nullptr;
     std::string hid_path = args.at("hid_path");
     std::string alsa_device = args.at("alsa_device");
     bool is_plus = args.at("is_plus")=="true";

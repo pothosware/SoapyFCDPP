@@ -32,8 +32,8 @@ snd_pcm_t* alsa_pcm_handle(const char* pcm_name,
         exit(EXIT_FAILURE);
     }
     
-    /* Interleaved access. (IQ interleaved). */
-    if (snd_pcm_hw_params_set_access(pcm_handle, hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
+    /* Interleaved direct buffer access. (IQ interleaved). */
+    if (snd_pcm_hw_params_set_access(pcm_handle, hwparams, SND_PCM_ACCESS_MMAP_INTERLEAVED) < 0) {
         fprintf(stderr, "Error setting access.\n");
         exit(EXIT_FAILURE);
     }
