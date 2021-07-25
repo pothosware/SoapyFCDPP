@@ -306,6 +306,13 @@ retry:
     // check we are in a valid state (prepared, running or xrun)
     snd_pcm_state_t state = snd_pcm_state(d_pcm_handle);
     switch (state) {
+        case SND_PCM_STATE_SETUP:
+            SoapySDR_log(SOAPY_SDR_TRACE, "..acquireReadBuffer:preparing");
+            if((err = snd_pcm_prepare(d_pcm_handle)) < 0) {
+                // could not prepare
+                SoapySDR_logf(SOAPY_SDR_ERROR, "snd_pcm_prepare %s", snd_strerror(err));
+                break;
+            } // fallthrough
         case SND_PCM_STATE_PREPARED:
             SoapySDR_log(SOAPY_SDR_TRACE, "..acquireReadBuffer:starting");
             err = snd_pcm_start(d_pcm_handle);
