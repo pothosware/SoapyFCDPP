@@ -720,11 +720,43 @@ std::vector<double> SoapyFCDPP::listBandwidths(const int direction, const size_t
 }
 
 // Registry
+#if HID_API_VERSION_MAJOR > 0 || HID_API_VERSION_MINOR > 10
+int readSysFs(const char *hidpath, int *usb1, int *usb2)
+{
+    // as of libhidapi 0.11.0, the device path changed to be /sysfs compatible
+    // <bus>-<port>[.<port>[...]]:<cfg>.<if>
+    // we go read the bus number and device number from
+    // /sys/bus/usb/devices/<bus>-<port>/[busnum|devnum]
+    const char *hend = strchr(hidpath, ':');
+    if (!hend)
+        return 0;
+    int hlen = hend-hidpath;
+    char sfspath[80];
+    int rv = 0;
+    snprintf(sfspath, sizeof(sfspath), "/sys/bus/usb/devices/%.*s/busnum", hlen, hidpath);
+    FILE *fp = fopen(sfspath, "r");
+    if (fp) {
+        rv += fscanf(fp, "%d\n", usb1);
+        fclose(fp);
+    }
+    snprintf(sfspath, sizeof(sfspath), "/sys/bus/usb/devices/%.*s/devnum", hlen, hidpath);
+    fp = fopen(sfspath, "r");
+    if (fp) {
+        rv += fscanf(fp, "%d\n", usb2);
+        fclose(fp);
+    }
+    return rv;
+}
+#endif
 std::string findAlsaDevice(const char *hidpath)
 {
     // Stolen from fcdctl, we locate the audio device for this HID interface by USB bus ID:
     // https://github.com/phlash/fcdctl/blob/8f9e855db26f531c1e2af0dcd3648e566e7f05b9/main.c#L76
+#if HID_API_VERSION_MAJOR > 0 || HID_API_VERSION_MINOR > 10
+    int usb1, usb2, n = readSysFs(hidpath, &usb1, &usb2);
+#else
     int usb1, usb2, n = sscanf(hidpath,"%x:%x", &usb1, &usb2);
+#endif
     assert(n==2);
     for (n=0; n<16; n++) {
         char aspath[32];
