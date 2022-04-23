@@ -30,6 +30,7 @@ SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_devi
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
     }
+    d_frequency = (double)fcdpp_get_freq_hz(d_handle);
 }
 
 SoapyFCDPP::~SoapyFCDPP()
