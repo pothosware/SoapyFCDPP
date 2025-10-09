@@ -1,7 +1,7 @@
 ########################################################################
 # Build Soapy SDR support module for FCDPP
 ########################################################################
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 2.8.12...3.10)
 project(SoapyFCDPP CXX C)
 
 find_package(SoapySDR "0.6.0" NO_MODULE)
