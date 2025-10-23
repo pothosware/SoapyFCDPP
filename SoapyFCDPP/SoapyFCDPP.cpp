@@ -30,7 +30,12 @@ SoapyFCDPP::SoapyFCDPP(const std::string &hid_path, const std::string &alsa_devi
     if (d_handle == nullptr) {
         throw std::runtime_error("hid_open_path failed to open: " + d_hid_path);
     }
-    d_frequency = (double)fcdpp_get_freq_hz(d_handle);
+    int err = fcdpp_get_freq_hz(d_handle);
+    if (err < 0) {
+        std::wstring ws(hid_error(d_handle));
+        throw std::runtime_error(std::string("fcdpp_get_freq_hz: ") + std::string(ws.begin(), ws.end()));
+    }
+    d_frequency = (double)err;
 }
 
 SoapyFCDPP::~SoapyFCDPP()
@@ -395,12 +400,16 @@ void SoapyFCDPP::setAntenna(const int direction, const size_t channel, const std
         if (name == "Bias_T_Off") {
             if (d_bias_tee) {
                 d_bias_tee = false;
-                fcdpp_set_bias_tee(d_handle, d_bias_tee);
+                if (fcdpp_set_bias_tee(d_handle, d_bias_tee) < 0) {
+                    SoapySDR_logf(SOAPY_SDR_ERROR, "setAntenna: fcdpp_set_bias_tee failed: %ls", hid_error(d_handle));
+                }
             }
         } else if (name == "Bias_T_On") {
             if (!d_bias_tee) {
                 d_bias_tee = true;
-                fcdpp_set_bias_tee(d_handle, d_bias_tee);
+                if (fcdpp_set_bias_tee(d_handle, d_bias_tee) < 0) {
+                    SoapySDR_logf(SOAPY_SDR_ERROR, "setAntenna: fcdpp_set_bias_tee failed: %ls", hid_error(d_handle));
+                }
             }
         } else {
             SoapySDR_logf(SOAPY_SDR_DEBUG, "setAntenna: unknown element %s", name.c_str());         
@@ -466,10 +475,14 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
             return;
         if (is_pro_plus) {
             d_lna_gain = (value > 5.0) ? 10.0 : 0.0;
-            fcdpp_set_lna_gain(d_handle, (value > 0.5));
+            if (fcdpp_set_lna_gain(d_handle, (value > 0.5)) < 0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: fcdpp_set_lna_gain: %ls", hid_error(d_handle));
+            }
         } else {
             uint8_t idx = mapLNAGain(value, &d_lna_gain);
-            fcdpp_set_lna_gain(d_handle, idx);
+            if (fcdpp_set_lna_gain(d_handle, idx) < 0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: fcdpp_set_lna_gain: %ls", hid_error(d_handle));
+            }
         }
 
     } else if (name == "Mixer") {
@@ -477,10 +490,14 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
             return;
         if (is_pro_plus) {
             d_mixer_gain = (value > 10.0) ? 20.0 : 0.0;
-            fcdpp_set_mixer_gain(d_handle, (value > 10.0));
+            if (fcdpp_set_mixer_gain(d_handle, (value > 10.0)) < 0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: fcdpp_set_mixer_gain: %ls", hid_error(d_handle));
+            }
         } else {
             d_mixer_gain = (value > 8.0) ? 12.0 : 4.0;
-            fcdpp_set_mixer_gain(d_handle, (value > 8.0));
+            if (fcdpp_set_mixer_gain(d_handle, (value > 8.0)) < 0) {
+                SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: fcdpp_set_mixer_gain: %ls", hid_error(d_handle));
+            }
         }
 
     } else if (name == "IF"){
@@ -492,7 +509,9 @@ void SoapyFCDPP::setGain(const int direction, const size_t channel, const std::s
             actual = value;
         // We rely on fcd lib to handle variation between FCD types
         d_if_gain = roundf(actual);
-        fcdpp_set_if_gain(d_handle, is_pro_plus, floor(actual));
+        if (fcdpp_set_if_gain(d_handle, is_pro_plus, floor(actual)) < 0) {
+            SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: fcdpp_set_if_gain: %ls", hid_error(d_handle));
+        }
 
     } else {
         SoapySDR_logf(SOAPY_SDR_ERROR, "setGain: unknown element '%s'", name.c_str());
@@ -574,7 +593,7 @@ void SoapyFCDPP::setFrequency(const int direction,
         if (err > 0) {
             d_frequency = frequency;
         } else {
-            SoapySDR_log(SOAPY_SDR_ERROR, "setFrequency failed to set device frequency");
+            SoapySDR_logf(SOAPY_SDR_ERROR, "setFrequency: fcdpp_set_frequency_hz: %ls", hid_error(d_handle));
         }
     }
 }
@@ -629,7 +648,7 @@ void SoapyFCDPP::setFrequencyCorrection(const int direction, const size_t channe
     if (d_frequency != 0.0) {  // don't set correction until tuned initially
         int err = fcdpp_set_freq_hz(d_handle, uint32_t(d_frequency), d_trim_ppm);
         if (err <= 0) {
-            SoapySDR_log(SOAPY_SDR_ERROR, "setFrequencyCorrection failed to set device frequency");
+            SoapySDR_logf(SOAPY_SDR_ERROR, "setFreqCorrection: fcdpp_set_freq_hz: %ls", hid_error(d_handle));
         }
     }
 }
