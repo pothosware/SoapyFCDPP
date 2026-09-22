@@ -4,10 +4,13 @@
 cmake_minimum_required(VERSION 2.8.12...3.10)
 project(SoapyFCDPP CXX C)
 
-find_package(SoapySDR "0.6.0" NO_MODULE)
-if (NOT SoapySDR_FOUND)
-    message(FATAL_ERROR "Soapy SDR development files not found...")
-endif ()
+find_package(SoapySDR "0.6.0" NO_MODULE REQUIRED)
+
+get_filename_component(_SoapySDR_ROOT "${SoapySDR_INCLUDE_DIRS}/.." ABSOLUTE)
+message(STATUS "SoapySDR root directory: ${_SoapySDR_ROOT}")
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND NOT "${_SoapySDR_ROOT}" STREQUAL "/usr")
+    set_property(CACHE CMAKE_INSTALL_PREFIX PROPERTY VALUE ${_SoapySDR_ROOT})
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -26,7 +29,6 @@ if (ALSA_FOUND)
 else()
     message(FATAL_ERROR "ALSA development files not found...")
 endif ()
-
 
 if(CMAKE_COMPILER_IS_GNUCXX)
 
