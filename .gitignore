@@ -6,3 +6,7 @@ build/
 
 # Xcode
 SoapyFCDPP.xcodeproj/project.xcworkspace/xcuserdata/
+
+/.vscode
+/build
+/.history
