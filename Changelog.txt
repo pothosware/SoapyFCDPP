@@ -1,6 +1,8 @@
-Release 0.2.0 (pending)
+Release 0.1.2 (2026-10-10)
 ==========================
 
+- Minor fixes
+- Updated CMake builds
 - support mapped stream buffer and configurable period setting
 - support for building SoapyFCDPP on SoapySDR v0.6 (Debian 10)
 - support for FCD Pro (V1.x) dongles

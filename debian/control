@@ -1,10 +1,9 @@
 Source: soapyfcdpp
 Section: libs
 Priority: optional
-Maintainer: Albin Stigo <albin.stigo@gmail.com>
-Uploader: Josh Blum <josh@pothosware.com>
+Maintainer: Christian W. Zuckschwerdt <zany@triq.net>
 Build-Depends:
-    debhelper (>= 9.0.0),
+    debhelper,
     cmake,
     libhidapi-dev,
     libasound2-dev,
@@ -14,7 +13,7 @@ Homepage: https://github.com/pothosware/SoapyFCDPP/wiki
 Vcs-Git: https://github.com/pothosware/SoapyFCDPP.git
 Vcs-Browser: https://github.com/pothosware/SoapyFCDPP
 
-Package: soapysdr0.7-module-fcdpp
+Package: soapysdr0.9-module-fcdpp
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -23,7 +22,7 @@ Description: Soapy FCDPP - FCDPP device support for Soapy SDR.
 
 Package: soapysdr-module-fcdpp
 Architecture: all
-Depends: soapysdr0.7-module-fcdpp, ${misc:Depends}
+Depends: soapysdr0.9-module-fcdpp, ${misc:Depends}
 Description: Soapy FCDPP - FCDPP device support for Soapy SDR.
  A Soapy module that supports FCDPP devices within the Soapy API.
  .
